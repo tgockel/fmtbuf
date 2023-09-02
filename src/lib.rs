@@ -80,6 +80,8 @@ pub struct WriteBuf<'a> {
 }
 
 impl<'a> WriteBuf<'a> {
+    /// Create an instance that will write to the given `target`. The contents of the target do not need to have been
+    /// initialized before this, as they will be overwritten by writing.
     pub fn new(target: &'a mut [u8]) -> Self {
         Self {
             target,
@@ -110,15 +112,58 @@ impl<'a> WriteBuf<'a> {
             Ok(self.position)
         }
     }
-}
 
-impl<'a> fmt::Write for WriteBuf<'a> {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        if self.truncated {
-            return Err(fmt::Error);
+    /// Finish the buffer, adding the `suffix` to the end. A common use case for this is to add a null terminator.
+    ///
+    /// This operates slightly differently than the normal format writing function `write_str` in that the `suffix` is
+    /// always put at the end. The only case where this will not happen is when `suffix.len()` is less than the size of
+    /// the buffer originally provided. In this case, the last bit of `suffix` will be copied.
+    ///
+    /// ```
+    /// use fmtbuf::WriteBuf;
+    ///
+    /// let mut buf: [u8; 4] = [0xff; 4];
+    /// let mut writer = WriteBuf::new(&mut buf);
+    ///
+    /// // Finish writing with too many bytes:
+    /// let write_len = writer.finish_with(b"12345").unwrap_err();
+    /// assert_eq!(write_len, 4);
+    /// let buf_str = std::str::from_utf8(&buf).unwrap();
+    /// assert_eq!(buf_str, "2345");
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// The returned value has the same meaning as [`WriteBuf::finish`].
+    pub fn finish_with(mut self, suffix: &[u8]) -> Result<usize, usize> {
+        let remaining = self.target.len() - self.position;
+
+        // enough room in the buffer to write entire suffix, so just write it
+        if suffix.len() <= remaining {
+            self.target[self.position..self.position + suffix.len()].copy_from_slice(suffix);
+            self.position += suffix.len();
+            return if self.truncated {
+                Err(self.position)
+            } else {
+                Ok(self.position)
+            };
         }
 
-        let input = s.as_bytes();
+        // if the suffix is larger than the entire target buffer, copy the last N
+        if self.target.len() < suffix.len() {
+            let copyable_suffix = &suffix[suffix.len() - self.target.len()..];
+            self.target[..].copy_from_slice(copyable_suffix);
+            return Err(self.target.len());
+        }
+
+        // Scan backwards to find the position we should write to (can't interrupt a UTF-8 multibyte sequence)
+        let potential_end_idx = self.target.len() - suffix.len();
+        let write_idx = rfind_utf8_end(&self.target[..potential_end_idx]);
+        self.target[write_idx..write_idx + suffix.len()].copy_from_slice(suffix);
+        Err(write_idx + suffix.len())
+    }
+
+    fn append(&mut self, input: &[u8]) -> fmt::Result {
         let remaining = self.target.len() - self.position;
         if remaining == 0 {
             return Err(fmt::Error);
@@ -132,9 +177,19 @@ impl<'a> fmt::Write for WriteBuf<'a> {
             &input[..rfind_utf8_end(to_write)]
         };
 
-        (&mut self.target[self.position..self.position + input.len()]).copy_from_slice(input);
+        self.target[self.position..self.position + input.len()].copy_from_slice(input);
         self.position += input.len();
         Ok(())
+    }
+}
+
+impl<'a> fmt::Write for WriteBuf<'a> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if self.truncated {
+            return Err(fmt::Error);
+        }
+
+        self.append(s.as_bytes())
     }
 }
 
@@ -201,6 +256,83 @@ mod test {
             assert_eq!(*last_valid_idx_after_cut, writer.position());
             let last_idx = writer.finish().unwrap_err();
             assert_eq!(*last_valid_idx_after_cut, last_idx);
+        }
+    }
+
+    struct SimpleString {
+        storage: [u8; 128],
+        size: usize,
+    }
+
+    impl SimpleString {
+        pub fn from_segments(segments: &[&str]) -> Self {
+            let mut out = Self {
+                storage: [0; 128],
+                size: 0,
+            };
+            for segment in segments {
+                out.append(segment);
+            }
+            out
+        }
+
+        pub fn append(&mut self, value: &str) {
+            let value = value.as_bytes();
+            self.storage[self.size..self.size + value.len()].copy_from_slice(value);
+            self.size += value.len();
+        }
+
+        pub fn as_str(&self) -> &str {
+            core::str::from_utf8(&self.storage[..self.size]).unwrap()
+        }
+    }
+
+    impl From<&str> for SimpleString {
+        fn from(value: &str) -> Self {
+            let value = value.as_bytes();
+            let mut storage = [0; 128];
+            storage[..value.len()].copy_from_slice(value);
+            Self {
+                storage,
+                size: value.len(),
+            }
+        }
+    }
+
+    #[test]
+    fn finish_with_enough_space() {
+        for (input, _) in TEST_CASES.iter() {
+            let mut buf: [u8; 128] = [0xff; 128];
+            let mut writer = WriteBuf::new(&mut buf);
+
+            writer.write_str(input).unwrap();
+            let position = writer.finish_with(b".123").unwrap();
+            assert_eq!(position, input.len() + 4);
+            let expected_written = SimpleString::from_segments(&[input, ".123"]);
+            let actually_wriiten = core::str::from_utf8(&buf[..position]).unwrap();
+            assert_eq!(expected_written.as_str(), actually_wriiten);
+        }
+    }
+
+    #[test]
+    fn finish_with_overwrite() {
+        for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+            if input.len() == 0 {
+                continue;
+            }
+
+            let mut buf: [u8; 128] = [0xff; 128];
+            let mut writer = WriteBuf::new(&mut buf[..input.len()]);
+
+            writer.write_str(input).unwrap();
+            let position = writer.finish_with(b"?").unwrap_err();
+            assert_eq!(position, last_valid_idx_after_cut + 1);
+            let expected_written = SimpleString::from_segments(&[
+                core::str::from_utf8(&input.as_bytes()[..*last_valid_idx_after_cut]).unwrap(),
+                "?",
+            ]);
+            let actually_wriiten = core::str::from_utf8(&buf[..position]).unwrap();
+            assert_eq!(expected_written.as_str(), actually_wriiten);
         }
     }
 }
