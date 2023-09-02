@@ -1,6 +1,8 @@
 //! # `fmtbuf`
 //! This library is intended to help write formatted text to fixed buffers.
 
+use core::fmt;
+
 /// Find the end of the last valid UTF-8 code point.
 ///
 /// # Parameters
@@ -50,30 +52,146 @@ pub fn rfind_utf8_end(buf: &[u8]) -> usize {
     position
 }
 
+/// A write buffer pointing to a `&mut [u8]`.
+///
+/// ```
+/// use fmtbuf::WriteBuf;
+/// use std::fmt::Write;
+///
+/// // The buffer to write into. The contents can be uninitialized, but using a
+/// // bogus `\xff` sigil for demonstration.
+/// let mut buf: [u8; 128] = [0xff; 128];
+/// let mut writer = WriteBuf::new(&mut buf);
+///
+/// // Write data to the buffer.
+/// write!(writer, "some data: {}", 0x01a4).unwrap();
+///
+/// // Finish writing:
+/// let write_len = writer.finish().unwrap();
+/// let written = std::str::from_utf8(&buf[..write_len]).unwrap();
+/// assert_eq!(written, "some data: 420");
+/// ```
+pub struct WriteBuf<'a> {
+    target: &'a mut [u8],
+    position: usize,
+    truncated: bool,
+}
+
+impl<'a> WriteBuf<'a> {
+    pub fn new(target: &'a mut [u8]) -> Self {
+        Self { target, position: 0, truncated: false }
+    }
+
+    /// Get the position in the target buffer. The value is one past the end of written content and the next position to
+    /// be written to.
+    pub fn position(&self) -> usize {
+        self.position
+    }
+
+    /// Get if a truncated write has happened.
+    pub fn truncated(&self) -> bool {
+        self.truncated
+    }
+
+    /// # Returns
+    ///
+    /// In both the `Ok` and `Err` cases, the [`WriteBuf::position`] is returned. The `Ok` case indicates the truncation
+    /// did not occur, while `Err` indicates that it did.
+    pub fn finish(self) -> Result<usize, usize> {
+        if self.truncated {
+            Err(self.position)
+        } else {
+            Ok(self.position)
+        }
+    }
+}
+
+impl<'a> fmt::Write for WriteBuf<'a> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if self.truncated {
+            return Err(fmt::Error);
+        }
+
+        let input = s.as_bytes();
+        let remaining = self.target.len() - self.position;
+        if remaining == 0 {
+            return Err(fmt::Error);
+        }
+
+        let input = if remaining >= input.len() {
+            input
+        } else {
+            let to_write = &input[..remaining];
+            self.truncated = true;
+            &input[..rfind_utf8_end(to_write)]
+        };
+
+        (&mut self.target[self.position..self.position + input.len()]).copy_from_slice(input);
+        self.position += input.len();
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use core::fmt::Write;
     use super::*;
 
-    static TEST_CASES: &[(&[u8], usize)] = &[
-        (b"", 0),
-        (b"James", 5),
-        ("Søren".as_bytes(), 6),
-        (b"_\xc3", 1),
-        ("磨".as_bytes(), 3),
-        ("here: 见/見".as_bytes(), 13),
-        (b"here: \xe8\xa7\x81/\xe8\xa6", 10),
-        ("𨉟呐㗂越".as_bytes(), 13),
-        ("🚀".as_bytes(), 4),
-        ("🚀🚀🚀".as_bytes(), 12),
-        (b"rocket: \xf0\x9f\x9a\x80", 12),
-        (b"rocket: \xf0\x9f\x9a", 8),
+    /// * `.0`: Input string
+    /// * `.1`: The end position if the last byte was chopped off
+    static TEST_CASES: &[(&str, usize)] = &[
+        ("", 0),
+        ("James", 4),
+        ("_ø", 1),
+        ("磨", 0),
+        ("here: 见/見", 10),
+        ("𨉟呐㗂越", 10),
+        ("🚀", 0),
+        ("🚀🚀🚀", 8),
+        ("rocket: 🚀", 8),
     ];
 
     #[test]
     fn rfind_utf8_end_test() {
-        for (input, last_valid_idx) in TEST_CASES.iter() {
-            let result = rfind_utf8_end(input);
-            assert_eq!(result, *last_valid_idx, "input={input:?}");
+        for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+            let result = rfind_utf8_end(input.as_bytes());
+            assert_eq!(result, input.len(), "input=\"{input}\"");
+            if input.len() == 0 {
+                continue;
+            }
+            let input_truncated = &input.as_bytes()[..input.len() - 1];
+            let result = rfind_utf8_end(input_truncated);
+            assert_eq!(result, *last_valid_idx_after_cut, "input=\"{input}\" truncated={input_truncated:?}");
+        }
+    }
+
+    #[test]
+    fn format_enough_space() {
+        for (input, _) in TEST_CASES.iter() {
+            let mut buf: [u8; 128] = [0xff; 128];
+            let mut writer = WriteBuf::new(&mut buf);
+
+            writer.write_str(input).unwrap();
+            assert_eq!(input.len(), writer.position());
+            let last_idx = writer.finish().unwrap();
+            assert_eq!(input.len(), last_idx);
+        }
+    }
+
+    #[test]
+    fn format_truncation() {
+        for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+            if input.len() == 0 {
+                continue;
+            }
+
+            let mut buf: [u8; 128] = [0xff; 128];
+            let mut writer = WriteBuf::new(&mut buf[..input.len() - 1]);
+
+            writer.write_str(input).unwrap();
+            assert_eq!(*last_valid_idx_after_cut, writer.position());
+            let last_idx = writer.finish().unwrap_err();
+            assert_eq!(*last_valid_idx_after_cut, last_idx);
         }
     }
 }
