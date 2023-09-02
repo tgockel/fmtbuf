@@ -18,6 +18,8 @@ jobs:
       run: cargo build --verbose
     - name: Tests
       run: cargo test --verbose
+    - name: Test nostd
+      run: cargo test --no-default-features --verbose
     - name: Docs
       run: cargo doc --verbose
     - name: Format Check

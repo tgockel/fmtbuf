@@ -9,6 +9,10 @@ keywords = ["string", "format"]
 categories = ["development-tools::ffi", "no-std"]
 readme = "README.md"
 
+[features]
+default = ["std"]
+std = []
+
 [dependencies]
 
 [badges]

@@ -1,6 +1,8 @@
 //! # `fmtbuf`
 //! This library is intended to help write formatted text to fixed buffers.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 use core::fmt;
 
 /// Find the end of the last valid UTF-8 code point.
