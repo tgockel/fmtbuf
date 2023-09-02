@@ -39,7 +39,7 @@ pub fn rfind_utf8_end(buf: &[u8]) -> usize {
             cu if cu & 0b1111_1000 == 0b1111_0000 => Some(4), // U+10000 .. U+10ffff
             cu if cu & 0b1111_1100 == 0b1111_1000 => Some(5), // U+11000 .. who knows?
             cu if cu & 0b1111_1110 == 0b1111_1100 => Some(6), // Unicode doesn't go this high
-            _ => None, // only hit if the input sequence is not UTF-8 encoded
+            _ => None,                                        // only hit if the input sequence is not UTF-8 encoded
         };
 
         if let Some(need_more) = need_more {
@@ -79,7 +79,11 @@ pub struct WriteBuf<'a> {
 
 impl<'a> WriteBuf<'a> {
     pub fn new(target: &'a mut [u8]) -> Self {
-        Self { target, position: 0, truncated: false }
+        Self {
+            target,
+            position: 0,
+            truncated: false,
+        }
     }
 
     /// Get the position in the target buffer. The value is one past the end of written content and the next position to
@@ -134,8 +138,8 @@ impl<'a> fmt::Write for WriteBuf<'a> {
 
 #[cfg(test)]
 mod test {
-    use core::fmt::Write;
     use super::*;
+    use core::fmt::Write;
 
     /// * `.0`: Input string
     /// * `.1`: The end position if the last byte was chopped off
@@ -161,7 +165,10 @@ mod test {
             }
             let input_truncated = &input.as_bytes()[..input.len() - 1];
             let result = rfind_utf8_end(input_truncated);
-            assert_eq!(result, *last_valid_idx_after_cut, "input=\"{input}\" truncated={input_truncated:?}");
+            assert_eq!(
+                result, *last_valid_idx_after_cut,
+                "input=\"{input}\" truncated={input_truncated:?}"
+            );
         }
     }
 
