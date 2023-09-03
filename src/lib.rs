@@ -103,7 +103,9 @@ impl<'a> WriteBuf<'a> {
     ///
     /// This operates slightly differently than the normal format writing function `write_str` in that the `suffix` is
     /// always put at the end. The only case where this will not happen is when `suffix.len()` is less than the size of
-    /// the buffer originally provided. In this case, the last bit of `suffix` will be copied.
+    /// the buffer originally provided. In this case, the last bit of `suffix` will be copied (starting at a valid UTF-8
+    /// sequence start; e.g.: writing `"🚀..."` to a 5 byte buffer will leave you with just `"..."`, no matter what was
+    /// written before).
     ///
     /// ```
     /// use fmtbuf::WriteBuf;
@@ -165,8 +167,17 @@ impl<'a> WriteBuf<'a> {
         // if the suffix is larger than the entire target buffer, copy the last N
         if self.target.len() < suffix.len() {
             let copyable_suffix = &suffix[suffix.len() - self.target.len()..];
-            self.target[..].copy_from_slice(copyable_suffix);
-            return Err(self.target.len());
+            let Some(valid_utf8_idx) = copyable_suffix
+                .iter()
+                .enumerate()
+                .find(|(_, cu)| utf8::utf8_char_width(**cu).is_some())
+                .map(|(idx, _)| idx)
+            else {
+                return Err(0);
+            };
+            let copyable_suffix = &copyable_suffix[valid_utf8_idx..];
+            self.target[..copyable_suffix.len()].copy_from_slice(copyable_suffix);
+            return Err(copyable_suffix.len());
         }
 
         // Scan backwards to find the position we should write to (can't interrupt a UTF-8 multibyte sequence)
@@ -357,5 +368,15 @@ mod test {
         let written = writer.finish_with_or("0123456789", "abc").unwrap_err();
         assert_eq!(written, 3);
         assert_eq!("abc", core::str::from_utf8(&buf[..written]).unwrap());
+    }
+
+    #[test]
+    fn finish_with_full_overwrite_utf8() {
+        let mut buf: [u8; 4] = [0xff; 4];
+        let writer = WriteBuf::new(&mut buf);
+
+        let written = writer.finish_with("🚀12").unwrap_err();
+        assert_eq!(written, 2);
+        assert_eq!("12", core::str::from_utf8(&buf[..written]).unwrap());
     }
 }

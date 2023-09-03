@@ -1,7 +1,7 @@
 /// If `code_unit` is a UTF-8 starting character, then return `Some(len)`, where `len` is the number of code units the
 /// encoded run represents. If `code_unit` is a continuation character (a value seen in the middle of an encoded run),
 /// then return `None`.
-const fn utf8_char_width(code_unit: u8) -> Option<usize> {
+pub const fn utf8_char_width(code_unit: u8) -> Option<usize> {
     match code_unit {
         cu if cu & 0b1000_0000 == 0b0000_0000 => Some(1), // U+0000 .. U+007f (ASCII)
         cu if cu & 0b1100_0000 == 0b1000_0000 => None,    // UTF-8 continuation character
