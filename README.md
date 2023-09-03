@@ -49,14 +49,10 @@ pub extern "C" fn mylib_strerror(err: *mut Error, buf: *mut ffi::c_char, buf_len
     // Use the standard `write!` macro (no error handling for brevity)
     write!(writer, "{}", err.as_ref().unwrap()).unwrap();
 
-    let _ =
-        if writer.truncated() {
-            // the message was truncated, let the caller know by adding "..."
-            writer.finish_with(b"...\0")
-        } else {
-            // just null-terminate the buffer
-            writer.finish_with(b"\0")
-        };
+    // null-terminate buffer or add "..." if it was truncated
+    let _written_len = writer.finish_with_or(b"\0", b"...\0")
+        // Err value is also number of bytes written
+        .unwrap_or_else(|e| e);
 }
 ```
 
