@@ -1,6 +1,6 @@
 [package]
 name = "fmtbuf"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Travis Gockel <travis@gockelhut.com>"]
 license = "Apache-2.0"
@@ -8,6 +8,7 @@ description = "Utilities for formatting to a fixed-size buffer"
 keywords = ["string", "format"]
 categories = ["development-tools::ffi", "no-std"]
 readme = "README.md"
+repository = "https://github.com/tgockel/fmtbuf"
 
 [features]
 default = ["std"]
