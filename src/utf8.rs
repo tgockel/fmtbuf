@@ -1,16 +1,33 @@
+const CODE_UNIT_INDICATE_WIDTH: [u8; 256] = [
+    // low order nibble
+    // 1, 2, 3, 4, 5, 6, 7, 8, 9, a, b, c, d, e, f
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0 h
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 1 i
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 2 g
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 3 h
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 4 o
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 5 r
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 6 d
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 7 e
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8 r
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // a n
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // b i
+    0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // c b
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // d b
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // e l
+    4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // f e
+];
+
 /// If `code_unit` is a UTF-8 starting character, then return `Some(len)`, where `len` is the number of code units the
 /// encoded run represents. If `code_unit` is a continuation character (a value seen in the middle of an encoded run),
 /// then return `None`.
 pub const fn utf8_char_width(code_unit: u8) -> Option<usize> {
-    match code_unit {
-        cu if cu & 0b1000_0000 == 0b0000_0000 => Some(1), // U+0000 .. U+007f (ASCII)
-        cu if cu & 0b1100_0000 == 0b1000_0000 => None,    // UTF-8 continuation character
-        cu if cu & 0b1110_0000 == 0b1100_0000 => Some(2), // U+0080 .. U+07ff
-        cu if cu & 0b1111_0000 == 0b1110_0000 => Some(3), // U+0800 .. U+ffff
-        cu if cu & 0b1111_1000 == 0b1111_0000 => Some(4), // U+10000 .. U+10ffff
-        cu if cu & 0b1111_1100 == 0b1111_1000 => Some(5), // U+11000 .. who knows?
-        cu if cu & 0b1111_1110 == 0b1111_1100 => Some(6), // Unicode doesn't go this high
-        _ => None,                                        // only hit if the input sequence is not UTF-8 encoded
+    let x = CODE_UNIT_INDICATE_WIDTH[code_unit as usize];
+    if x == 0 {
+        None
+    } else {
+        Some(x as usize)
     }
 }
 
