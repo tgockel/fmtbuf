@@ -14,13 +14,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
-    - name: Tests
+    - name: Test/Debug
       run: cargo test --verbose
-    - name: Test nostd
+    - name: Test/Debug+nostd
       run: cargo test --no-default-features --verbose
+    - name: Test/Release
+      run: cargo test --release --verbose
+    - name: Test/Release+nostd
+      run: cargo test --no-default-features --release --verbose
     - name: Docs
       run: cargo doc --verbose
     - name: Format Check
       run: cargo fmt --check
+    - name: Clippy
+      run: cargo clippy
