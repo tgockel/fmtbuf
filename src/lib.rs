@@ -450,3 +450,15 @@ mod test {
         assert_eq!("12", core::str::from_utf8(&buf[..written]).unwrap());
     }
 }
+
+#[cfg(doctest)]
+mod test_readme {
+    macro_rules! external_doc_test {
+        ($x:expr) => {
+            #[doc = $x]
+            extern "C" {}
+        };
+    }
+
+    external_doc_test!(include_str!("../README.md"));
+}

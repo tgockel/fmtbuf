@@ -41,7 +41,7 @@ use std::{ffi, fmt::Write, io::Error};
 use fmtbuf::WriteBuf;
 
 #[no_mangle]
-pub extern "C" fn mylib_strerror(
+pub unsafe extern "C" fn mylib_strerror(
     err: *mut Error,
     buf: *mut ffi::c_char,
     buf_len: usize
