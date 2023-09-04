@@ -62,6 +62,7 @@ pub use utf8::rfind_utf8_end;
 pub struct WriteBuf<'a> {
     target: &'a mut [u8],
     position: usize,
+    reserve: usize,
     truncated: bool,
 }
 
@@ -72,6 +73,24 @@ impl<'a> WriteBuf<'a> {
         Self {
             target,
             position: 0,
+            reserve: 0,
+            truncated: false,
+        }
+    }
+
+    /// Create an instance that will write to the given `target` and `reserve` bytes at the end that will not be written
+    /// be `write_str` operations.
+    ///
+    /// The use of this constructor is to note that `reserve` bytes will always be written at the end of the buffer (by
+    /// the [`WriteBuf::finish_with`] family of functions), so `write_str` should not bother writing to it. This is
+    /// useful when you know that you will always `finish_with` a null terminator or other character.
+    ///
+    /// It is allowed to have `target.len() < reserve`, but this can never be written to.
+    pub fn with_reserve(target: &'a mut [u8], reserve: usize) -> Self {
+        Self {
+            target,
+            position: 0,
+            reserve,
             truncated: false,
         }
     }
@@ -208,11 +227,17 @@ impl<'a> WriteBuf<'a> {
         Err(write_idx + suffix.len())
     }
 
-    fn append(&mut self, input: &[u8]) -> fmt::Result {
-        let remaining = self.target.len() - self.position;
-        if remaining == 0 {
+    fn _write(&mut self, input: &[u8]) -> fmt::Result {
+        if self.truncated {
             return Err(fmt::Error);
         }
+
+        let remaining = self.target.len() - self.position;
+        if remaining < self.reserve {
+            self.truncated = true;
+            return Err(fmt::Error);
+        }
+        let remaining = remaining - self.reserve;
 
         let (input, result) = if remaining >= input.len() {
             (input, Ok(()))
@@ -245,11 +270,7 @@ impl<'a> fmt::Write for WriteBuf<'a> {
     /// functions, which will always return the `Err` case to indicate truncation. For [`WriteBuf::finish_with_or`],
     /// the `normal_suffix` will not be attempted.
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        if self.truncated {
-            return Err(fmt::Error);
-        }
-
-        self.append(s.as_bytes())
+        self._write(s.as_bytes())
     }
 }
 
@@ -294,6 +315,19 @@ mod test {
         for (input, _) in TEST_CASES.iter() {
             let mut buf: [u8; 128] = [0xff; 128];
             let mut writer = WriteBuf::new(&mut buf);
+
+            writer.write_str(input).unwrap();
+            assert_eq!(input.len(), writer.position());
+            let last_idx = writer.finish().unwrap();
+            assert_eq!(input.len(), last_idx);
+        }
+    }
+
+    #[test]
+    fn format_enough_space_just_enough_reserved() {
+        for (input, _) in TEST_CASES.iter() {
+            let mut buf: [u8; 128] = [0xff; 128];
+            let mut writer = WriteBuf::with_reserve(&mut buf[..input.len() + 1], 1);
 
             writer.write_str(input).unwrap();
             assert_eq!(input.len(), writer.position());

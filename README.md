@@ -1,7 +1,9 @@
 fmtbuf
 ======
 
-Format into a fixed buffer.
+Write a formatted string into a fixed buffer.
+This is useful when you have a user-provided buffer you want to write into, which frequently arises when writing foreign
+function interfaces for C.
 
 Usage
 -----
@@ -44,7 +46,8 @@ pub extern "C" fn mylib_strerror(err: *mut Error, buf: *mut ffi::c_char, buf_len
         // Buffer provided by a users
         let mut buf = std::slice::from_raw_parts_mut(buf as *mut u8, buf_len);
     };
-    let mut writer = WriteBuf::new(buf);
+    // Reserve at least 1 byte at the end because we will always write '\0'
+    let mut writer = WriteBuf::with_reserve(buf, 1);
 
     // Use the standard `write!` macro (no error handling for brevity)
     write!(writer, "{}", err.as_ref().unwrap()).unwrap();
