@@ -87,6 +87,24 @@ impl<'a> WriteBuf<'a> {
         self.truncated
     }
 
+    /// Get the contents that have been written so far.
+    pub fn written_bytes(&self) -> &[u8] {
+        &self.target[..self.position]
+    }
+
+    /// Get the contents that have been written so far.
+    pub fn written(&self) -> &str {
+        #[cfg(debug_assertions)]
+        return core::str::from_utf8(self.written_bytes()).expect("contents of buffer should have been UTF-8 encoded");
+
+        // safety: The only way to write into the buffer is with valid UTF-8, so there is no reason to check the
+        // contents for validity. They're still checked in debug builds just in case, though.
+        #[cfg(not(debug_assertions))]
+        unsafe {
+            core::str::from_utf8_unchecked(self.written_bytes())
+        }
+    }
+
     /// # Returns
     ///
     /// In both the `Ok` and `Err` cases, the [`WriteBuf::position`] is returned. The `Ok` case indicates the truncation
