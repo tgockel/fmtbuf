@@ -1,6 +1,6 @@
 [package]
 name = "fmtbuf"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Travis Gockel <travis@gockelhut.com>"]
 license = "Apache-2.0"
