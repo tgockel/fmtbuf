@@ -3,7 +3,7 @@ fmtbuf
 
 Write a formatted string into a fixed buffer.
 This is useful when you have a user-provided buffer you want to write into, which frequently arises when writing foreign
-function interfaces for C.
+function interfaces for C, where strings are expected to have a null terminator.
 
 Usage
 -----
@@ -18,7 +18,7 @@ fn main() {
     if let Err(e) = write!(&mut writer, "🚀🚀🚀") {
         println!("write error: {e:?}");
     }
-    let written_len = match writer.finish() {
+    let written_len = match writer.finish_with("\0") {
         Ok(len) => len, // <- won't be hit since 🚀🚀🚀 is 12 bytes
         Err(len) => {
             println!("writing was truncated");
