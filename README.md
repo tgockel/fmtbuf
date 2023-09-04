@@ -41,16 +41,24 @@ use std::{ffi, fmt::Write, io::Error};
 use fmtbuf::WriteBuf;
 
 #[no_mangle]
-pub extern "C" fn mylib_strerror(err: *mut Error, buf: *mut ffi::c_char, buf_len: usize) {
+pub extern "C" fn mylib_strerror(
+    err: *mut Error,
+    buf: *mut ffi::c_char,
+    buf_len: usize
+) {
     let mut buf = unsafe {
         // Buffer provided by a users
-        let mut buf = std::slice::from_raw_parts_mut(buf as *mut u8, buf_len);
+        std::slice::from_raw_parts_mut(buf as *mut u8, buf_len)
     };
-    // Reserve at least 1 byte at the end because we will always write '\0'
+    // Reserve at least 1 byte at the end because we will always
+    // write '\0'
     let mut writer = WriteBuf::with_reserve(buf, 1);
 
-    // Use the standard `write!` macro (no error handling for brevity)
-    write!(writer, "{}", err.as_ref().unwrap()).unwrap();
+    // Use the standard `write!` macro (no error handling for
+    // brevity) -- note that an error here might only indicate
+    // write truncation, which is handled gracefully be this
+    // library's finish___ functions
+    let _ = write!(writer, "{}", err.as_ref().unwrap());
 
     // null-terminate buffer or add "..." if it was truncated
     let _written_len = writer.finish_with_or(b"\0", b"...\0")
