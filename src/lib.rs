@@ -105,6 +105,9 @@ impl<'a> WriteBuf<'a> {
         }
     }
 
+    /// Finish writing to the buffer. This returns control of the target buffer to the caller (it is no longer mutably
+    /// borrowed) and returns the number of bytes written.
+    ///
     /// # Returns
     ///
     /// In both the `Ok` and `Err` cases, the [`WriteBuf::position`] is returned. The `Ok` case indicates the truncation
@@ -211,21 +214,36 @@ impl<'a> WriteBuf<'a> {
             return Err(fmt::Error);
         }
 
-        let input = if remaining >= input.len() {
-            input
+        let (input, result) = if remaining >= input.len() {
+            (input, Ok(()))
         } else {
             let to_write = &input[..remaining];
             self.truncated = true;
-            &input[..rfind_utf8_end(to_write)]
+            (&input[..rfind_utf8_end(to_write)], Err(fmt::Error))
         };
 
         self.target[self.position..self.position + input.len()].copy_from_slice(input);
         self.position += input.len();
-        Ok(())
+
+        result
     }
 }
 
 impl<'a> fmt::Write for WriteBuf<'a> {
+    /// Append `s` to the target buffer.
+    ///
+    /// # Error
+    ///
+    /// An error is returned if the entirety of `s` can not fit in the target buffer or if a previous `write_str`
+    /// operation failed. If this occurs, as much as `s` that can fit into the buffer will be written up to the last
+    /// valid Unicode code point. In other words, if the target buffer have 6 writable bytes left and `s` is the two
+    /// code points `"♡🐶"` (a.k.a.: the 7 byte `b"\xe2\x99\xa1\xf0\x9f\x90\xb6"`), then only `♡` will make it to the
+    /// output buffer, making the target of your ♡ ambiguous.
+    ///
+    /// Truncation marks this buffer as truncated, which can be observed with [`WriteBuf::truncated`]. Future write
+    /// attempts will immediately return in `Err`. This also affects the behavior of [`WriteBuf::finish`] family of
+    /// functions, which will always return the `Err` case to indicate truncation. For [`WriteBuf::finish_with_or`],
+    /// the `normal_suffix` will not be attempted.
     fn write_str(&mut self, s: &str) -> fmt::Result {
         if self.truncated {
             return Err(fmt::Error);
@@ -294,7 +312,7 @@ mod test {
             let mut buf: [u8; 128] = [0xff; 128];
             let mut writer = WriteBuf::new(&mut buf[..input.len() - 1]);
 
-            writer.write_str(input).unwrap();
+            writer.write_str(input).unwrap_err();
             assert_eq!(*last_valid_idx_after_cut, writer.position());
             let last_idx = writer.finish().unwrap_err();
             assert_eq!(*last_valid_idx_after_cut, last_idx);
