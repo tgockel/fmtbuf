@@ -13,10 +13,10 @@ Issues should only be opened on if the issue **relates to code in this repositor
 # Steps to Reproduce
 
 Write the steps to reproduce the issue you're seeing.
-The easiest way to do this is to use the `writebuf` program with `--debug` enabled:
+The easiest way to do this is to use the `writebuf` program:
 
 ```shell
-cargo run --example writebuf -- --debug --help
+cargo run --example writebuf -- --help
 ```
 
 Use that program to recreate the issue, then paste the output into this report.

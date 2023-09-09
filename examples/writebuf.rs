@@ -1,5 +1,6 @@
 //! This utility program is useful for testing [`fmtbuf::WriteBuf`] behavior with various buffer sizes, inputs and
-//! `finish_with` parameters.
+//! `finish_with` parameters. It is primarily used for bug reporting, so the default output is quite verbose; use
+//! `--quiet` to silence this.
 
 use clap::Parser;
 use fmtbuf::WriteBuf;
@@ -27,9 +28,9 @@ struct Cli {
     #[arg(long)]
     pub truncate_with: Option<String>,
 
-    /// Print the debugging information as well. This is used when generating error reports.
+    /// Do not generate the extra debugging information: just print the result.
     #[arg(long)]
-    pub debug: bool,
+    pub quiet: bool,
 
     /// The string to input. This is passed directly to `write!`.
     pub input: String,
@@ -37,8 +38,19 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    if cli.debug {
-        println!("{cli:?}");
+    if !cli.quiet {
+        println!("+ input: {}", cli.input);
+        println!("+ input_bytes: {:?}", cli.input.as_bytes());
+        println!("+ buffer_size: {}", cli.buffer_size);
+        println!("+ reserve: {}", cli.reserve);
+        println!("+ finish_with: {:?}", cli.finish_with);
+        if let Some(finish_with) = &cli.finish_with {
+            println!("+ finish_with_bytes: {:?}", finish_with.as_bytes());
+        }
+        println!("+ truncate_with: {:?}", cli.truncate_with);
+        if let Some(truncate_with) = &cli.truncate_with {
+            println!("+ truncate_with_bytes: {:?}", truncate_with.as_bytes());
+        }
     }
 
     let mut buf = vec![0; cli.buffer_size];
@@ -65,7 +77,7 @@ fn main() {
             &buf[..written_len]
         },
     };
-    if cli.debug {
+    if !cli.quiet {
         println!("+ version: {}", env!("CARGO_PKG_VERSION"));
         println!("+ written_len: {written_len}");
         println!("+ truncated: {truncated}");
