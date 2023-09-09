@@ -98,7 +98,7 @@ wrote 10 bytes: [114, 111, 99, 107, 101, 116, 58, 32, 240, 159]
 result: Err(Utf8Error { valid_up_to: 8, error_len: None })
 ```
 
-The problem is that `"rocket: 🚀"` is encoded as the 12 byte sequence -- the 🚀 emoji is encoded in UTF-8 as the 4 bytes
+The problem is that `"rocket: 🚀"` is encoded as a 12 byte sequence -- the 🚀 emoji is encoded in UTF-8 as the 4 bytes
 `b"\xf0\x9f\x9a\x80"` -- but our target buffer is only 10 bytes long.
 The `write!` to the cursor naïvely cuts off the 🚀 mid-encode, making the encoded string invalid UTF-8, even though it
 advanced the cursor the entire 10 bytes.
