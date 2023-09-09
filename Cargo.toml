@@ -17,7 +17,7 @@ std = []
 [dependencies]
 
 [dev-dependencies]
-clap = { version = "4.4.2", features = ["derive"] }
+clap = { version = "4.0.0", features = ["derive"] }
 
 [badges]
 maintenance = { status = "actively-developed" }
