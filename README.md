@@ -110,3 +110,14 @@ cut off the `buf`.
 The only issue with this is performance.
 Since `std::str::from_utf8` scans the whole string moving forward, it costs _O(n)_ to test this, whereas `fmtbuf` will
 do this in _O(1)_, since it only looks at the final few bytes.
+
+Features
+--------
+
+### `!#[no_std]`
+
+Support for `!#[no_std]` is enabled by disabling the default features and not re-enabling the `"std"` feature.
+
+```toml
+fmtbuf = { version = "*", default_features = false }
+```
