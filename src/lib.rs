@@ -144,10 +144,10 @@ impl<'a> WriteBuf<'a> {
     /// In both the `Ok` and `Err` cases, the [`WriteBuf::position`] is returned. The `Ok` case indicates the truncation
     /// did not occur, while `Err` indicates that it did.
     pub fn finish(self) -> Result<usize, usize> {
-        if self.truncated {
-            Err(self.position)
+        if self.truncated() {
+            Err(self.position())
         } else {
-            Ok(self.position)
+            Ok(self.position())
         }
     }
 
@@ -191,7 +191,7 @@ impl<'a> WriteBuf<'a> {
     }
 
     fn _finish_with(mut self, normal: &[u8], truncated: &[u8]) -> Result<usize, usize> {
-        let remaining = self.target.len() - self.position;
+        let remaining = self.target.len() - self.position();
 
         // If the truncated case is shorter than the normal case, then writing it might still work
         for (suffix, should_test) in [(normal, !self.truncated), (truncated, true)] {
@@ -203,10 +203,10 @@ impl<'a> WriteBuf<'a> {
             if suffix.len() <= remaining {
                 self.target[self.position..self.position + suffix.len()].copy_from_slice(suffix);
                 self.position += suffix.len();
-                return if self.truncated {
-                    Err(self.position)
+                return if self.truncated() {
+                    Err(self.position())
                 } else {
-                    Ok(self.position)
+                    Ok(self.position())
                 };
             }
 
@@ -240,16 +240,16 @@ impl<'a> WriteBuf<'a> {
     }
 
     fn _write(&mut self, input: &[u8]) -> fmt::Result {
-        if self.truncated {
+        if self.truncated() {
             return Err(fmt::Error);
         }
 
-        let remaining = self.target.len() - self.position;
-        if remaining < self.reserve {
+        let remaining = self.target.len() - self.position();
+        if remaining < self.reserve() {
             self.truncated = true;
             return Err(fmt::Error);
         }
-        let remaining = remaining - self.reserve;
+        let remaining = remaining - self.reserve();
 
         let (input, result) = if remaining >= input.len() {
             (input, Ok(()))
@@ -360,6 +360,9 @@ mod test {
 
             writer.write_str(input).unwrap_err();
             assert_eq!(*last_valid_idx_after_cut, writer.position());
+            assert!(writer.truncated());
+            write!(writer, "!!!").expect_err("writes should fail here");
+
             let last_idx = writer.finish().unwrap_err();
             assert_eq!(*last_valid_idx_after_cut, last_idx);
         }
@@ -395,13 +398,7 @@ mod test {
 
     impl From<&str> for SimpleString {
         fn from(value: &str) -> Self {
-            let value = value.as_bytes();
-            let mut storage = [0; 128];
-            storage[..value.len()].copy_from_slice(value);
-            Self {
-                storage,
-                size: value.len(),
-            }
+            Self::from_segments(&[value])
         }
     }
 
@@ -460,6 +457,21 @@ mod test {
         let written = writer.finish_with("🚀12").unwrap_err();
         assert_eq!(written, 2);
         assert_eq!("12", core::str::from_utf8(&buf[..written]).unwrap());
+    }
+
+    #[test]
+    fn set_reserve_should_not_change_written() {
+        let mut buf: [u8; 10] = [0xff; 10];
+        let mut writer = WriteBuf::new(&mut buf);
+
+        write!(writer, "0123456789").unwrap();
+        assert_eq!("0123456789", writer.written());
+
+        writer.set_reserve(4);
+        assert_eq!("0123456789", writer.written());
+
+        writer.finish_with_or("", "!").unwrap();
+        assert_eq!("0123456789", core::str::from_utf8(&buf).unwrap());
     }
 }
 
