@@ -106,6 +106,18 @@ impl<'a> WriteBuf<'a> {
         self.truncated
     }
 
+    /// Get the count of reserved bytes.
+    pub fn reserve(&self) -> usize {
+        self.reserve
+    }
+
+    /// Set the reserve bytes to `count`. If the written section has already encroached on the reserve space, this has
+    /// no immediate effect, but it will prevent future writes. If [`WriteBuf::truncated`] has already been triggered,
+    /// it will not be reset.
+    pub fn set_reserve(&mut self, count: usize) {
+        self.reserve = count;
+    }
+
     /// Get the contents that have been written so far.
     pub fn written_bytes(&self) -> &[u8] {
         &self.target[..self.position]
