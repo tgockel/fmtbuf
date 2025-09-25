@@ -22,7 +22,7 @@ fn main() {
         Ok(len) => len, // <- won't be hit since 🚀🚀🚀 is 12 bytes
         Err(len) => {
             println!("writing was truncated");
-            len
+            len.take()
         }
     };
     let written = &buf[..written_len];
@@ -62,8 +62,8 @@ pub unsafe extern "C" fn mylib_strerror(
 
     // null-terminate buffer or add "..." if it was truncated
     let _written_len = writer.finish_with_or(b"\0", b"...\0")
-        // Err value is also number of bytes written
-        .unwrap_or_else(|e| e);
+        // Err value contains number of bytes written
+        .unwrap_or_else(|e| e.take());
 }
 ```
 

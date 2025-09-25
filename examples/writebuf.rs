@@ -64,7 +64,7 @@ fn main() {
     };
     let (written_len, truncated) = match result {
         Ok(len) => (len, false),
-        Err(len) => (len, true),
+        Err(len) => (len.take(), true),
     };
 
     let contents = match std::str::from_utf8(&buf[..written_len]) {

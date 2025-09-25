@@ -14,7 +14,7 @@
 //!     Ok(len) => len, // <- won't be hit since 🚀🚀🚀 is 12 bytes
 //!     Err(len) => {
 //!         println!("writing was truncated");
-//!         len
+//!         len.take()
 //!     }
 //! };
 //! let written = &buf[..written_len];
@@ -33,9 +33,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+mod truncated;
 mod utf8;
 
 use core::fmt;
+
+pub use truncated::Truncated;
 
 #[deprecated]
 pub use utf8::rfind_utf8_end;
@@ -143,9 +146,9 @@ impl<'a> WriteBuf<'a> {
     ///
     /// In both the `Ok` and `Err` cases, the [`WriteBuf::position`] is returned. The `Ok` case indicates the truncation
     /// did not occur, while `Err` indicates that it did.
-    pub fn finish(self) -> Result<usize, usize> {
+    pub fn finish(self) -> Result<usize, Truncated<usize>> {
         if self.truncated() {
-            Err(self.position())
+            Err(Truncated(self.position()))
         } else {
             Ok(self.position())
         }
@@ -166,7 +169,7 @@ impl<'a> WriteBuf<'a> {
     /// let mut writer = WriteBuf::new(&mut buf);
     ///
     /// // Finish writing with too many bytes:
-    /// let write_len = writer.finish_with("12345").unwrap_err();
+    /// let write_len = writer.finish_with("12345").unwrap_err().take();
     /// assert_eq!(write_len, 4);
     /// let buf_str = std::str::from_utf8(&buf).unwrap();
     /// assert_eq!(buf_str, "2345");
@@ -175,7 +178,7 @@ impl<'a> WriteBuf<'a> {
     /// # Returns
     ///
     /// The returned value has the same meaning as [`WriteBuf::finish`].
-    pub fn finish_with(self, suffix: impl AsRef<[u8]>) -> Result<usize, usize> {
+    pub fn finish_with(self, suffix: impl AsRef<[u8]>) -> Result<usize, Truncated<usize>> {
         let suffix = suffix.as_ref();
         self._finish_with(suffix, suffix)
     }
@@ -186,11 +189,11 @@ impl<'a> WriteBuf<'a> {
         self,
         normal_suffix: impl AsRef<[u8]>,
         truncated_suffix: impl AsRef<[u8]>,
-    ) -> Result<usize, usize> {
+    ) -> Result<usize, Truncated<usize>> {
         self._finish_with(normal_suffix.as_ref(), truncated_suffix.as_ref())
     }
 
-    fn _finish_with(mut self, normal: &[u8], truncated: &[u8]) -> Result<usize, usize> {
+    fn _finish_with(mut self, normal: &[u8], truncated: &[u8]) -> Result<usize, Truncated<usize>> {
         let remaining = self.target.len() - self.position();
 
         // If the truncated case is shorter than the normal case, then writing it might still work
@@ -204,7 +207,7 @@ impl<'a> WriteBuf<'a> {
                 self.target[self.position..self.position + suffix.len()].copy_from_slice(suffix);
                 self.position += suffix.len();
                 return if self.truncated() {
-                    Err(self.position())
+                    Err(Truncated(self.position()))
                 } else {
                     Ok(self.position())
                 };
@@ -225,18 +228,18 @@ impl<'a> WriteBuf<'a> {
                 .find(|(_, cu)| utf8::utf8_char_width(**cu).is_some())
                 .map(|(idx, _)| idx)
             else {
-                return Err(0);
+                return Err(Truncated(0));
             };
             let copyable_suffix = &copyable_suffix[valid_utf8_idx..];
             self.target[..copyable_suffix.len()].copy_from_slice(copyable_suffix);
-            return Err(copyable_suffix.len());
+            return Err(Truncated(copyable_suffix.len()));
         }
 
         // Scan backwards to find the position we should write to (can't interrupt a UTF-8 multibyte sequence)
         let potential_end_idx = self.target.len() - suffix.len();
         let write_idx = rfind_utf8_end(&self.target[..potential_end_idx]);
         self.target[write_idx..write_idx + suffix.len()].copy_from_slice(suffix);
-        Err(write_idx + suffix.len())
+        Err(Truncated(write_idx + suffix.len()))
     }
 
     fn _write(&mut self, input: &[u8]) -> fmt::Result {
@@ -363,7 +366,7 @@ mod test {
             assert!(writer.truncated());
             write!(writer, "!!!").expect_err("writes should fail here");
 
-            let last_idx = writer.finish().unwrap_err();
+            let last_idx = writer.finish().unwrap_err().take();
             assert_eq!(*last_valid_idx_after_cut, last_idx);
         }
     }
@@ -428,7 +431,7 @@ mod test {
             let mut writer = WriteBuf::new(&mut buf[..input.len()]);
 
             writer.write_str(input).unwrap();
-            let position = writer.finish_with("?").unwrap_err();
+            let position = writer.finish_with("?").unwrap_err().take();
             assert_eq!(position, last_valid_idx_after_cut + 1);
             let expected_written = SimpleString::from_segments(&[
                 core::str::from_utf8(&input.as_bytes()[..*last_valid_idx_after_cut]).unwrap(),
@@ -444,7 +447,7 @@ mod test {
         let mut buf: [u8; 4] = [0xff; 4];
         let writer = WriteBuf::new(&mut buf);
 
-        let written = writer.finish_with_or("0123456789", "abc").unwrap_err();
+        let written = writer.finish_with_or("0123456789", "abc").unwrap_err().take();
         assert_eq!(written, 3);
         assert_eq!("abc", core::str::from_utf8(&buf[..written]).unwrap());
     }
@@ -454,7 +457,7 @@ mod test {
         let mut buf: [u8; 4] = [0xff; 4];
         let writer = WriteBuf::new(&mut buf);
 
-        let written = writer.finish_with("🚀12").unwrap_err();
+        let written = writer.finish_with("🚀12").unwrap_err().take();
         assert_eq!(written, 2);
         assert_eq!("12", core::str::from_utf8(&buf[..written]).unwrap());
     }
