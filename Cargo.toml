@@ -1,6 +1,6 @@
 [package]
 name = "fmtbuf"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2018"
 rust-version = "1.31"
 authors = ["Travis Gockel <travis@gockelhut.com>"]
@@ -21,4 +21,4 @@ std = []
 clap = { version = "4.0.0", features = ["derive"] }
 
 [badges]
-maintenance = { status = "actively-developed" }
+maintenance = { status = "experimental" } # this line is currently experimental
