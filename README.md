@@ -5,31 +5,37 @@ Write a formatted string into a fixed buffer.
 This is useful when you have a user-provided buffer you want to write into, which frequently arises when writing foreign
 function interfaces for C, where strings are expected to have a null terminator.
 
-Usage
------
-
 ```rust
 use fmtbuf::WriteBuf;
 use std::fmt::Write;
 
-fn main() {
-    let mut buf: [u8; 10] = [0; 10];
-    let mut writer = WriteBuf::new(&mut buf);
-    if let Err(e) = write!(&mut writer, "🚀🚀🚀") {
-        println!("write error: {e:?}");
-    }
-    let written = match writer.finish_with("\0") {
-        Ok(s) => s, // <- won't be hit since 🚀🚀🚀 is 12 bytes
-        Err(e) => {
-            println!("writing was truncated");
-            e.take()
-        }
-    };
-    println!("wrote {} bytes: {written:?}", written.len());
+let mut buf: [u8; 10] = [0; 10];
+let mut writer = WriteBuf::new(&mut buf);
+if let Err(e) = write!(&mut writer, "🚀🚀🚀") {
+    println!("write error: {e:?}");
 }
+let written = match writer.finish_with_or("!", "…") {
+    Ok(s) => s, // <- won't be hit since 🚀🚀🚀 is 12 bytes
+    Err(e) => {
+        println!("writing was truncated");
+        e.take()
+    }
+};
+assert_eq!("🚀…", written);
 ```
 
-🚀🚀
+A few things happened in that example:
+
+1. We started with a 10 byte buffer
+2. Tried to write `"🚀🚀🚀"` to it, which is encoded as 3 `b"\xf0\x9f\x9a\x80"`s (12 bytes)
+3. This can't fit into 10 bytes, so only `"🚀🚀"` is stored and the `writer` is noted as having truncated writes
+4. We finish the buffer with `"!"` on success or `"…"` (a.k.a. `b"\xe2\x80\xa6"`) on truncation
+5. Since we noted truncation in step #3, we try to write `"…"`, but this can not fit into the buffer either, since
+   8 (`"🚀🚀".len()`) + 3 (`"…".len()`) > 12 (`buf.len()`)
+6. Roll the buffer back to the end of the first 🚀, then add …, leaving us with `"🚀…"`
+
+Usage
+-----
 
 The primary use case is for implementing APIs like [`strerror_r`](https://linux.die.net/man/3/strerror_r), where the
 user provides the buffer.

@@ -1,35 +1,4 @@
-//! # `fmtbuf`
-//! This library is intended to help write formatted text to fixed buffers.
-//!
-//! ```
-//! use fmtbuf::WriteBuf;
-//! use std::fmt::Write;
-//!
-//! let mut buf: [u8; 10] = [0; 10];
-//! let mut writer = WriteBuf::new(&mut buf);
-//! if let Err(e) = write!(&mut writer, "🚀🚀🚀") {
-//!     println!("write error: {e:?}");
-//! }
-//! let written = match writer.finish_with_or("!", "…") {
-//!     Ok(s) => s, // <- won't be hit since 🚀🚀🚀 is 12 bytes
-//!     Err(e) => {
-//!         println!("writing was truncated");
-//!         e.take()
-//!     }
-//! };
-//! assert_eq!("🚀…", written);
-//! ```
-//!
-//! A few things happened in that example:
-//!
-//! 1. We stared with a 10 byte buffer
-//! 2. Tried to write `"🚀🚀🚀"` to it, which is encoded as 3 `b"\xf0\x9f\x9a\x80"`s (12 bytes)
-//! 3. This can't fit into 10 bytes, so only `"🚀🚀"` is stored and the `writer` is noted as having truncated writes
-//! 4. We finish the buffer with `"!"` on success or `"…"` (a.k.a. `b"\xe2\x80\xa6"`) on truncation
-//! 5. Since we noted truncation in step #3, we try to write `"…"`, but this can not fit into the buffer either, since
-//!    8 (`"🚀🚀".len()`) + 3 (`"…".len()`) > 12 (`buf.len()`)
-//! 6. Roll the buffer back to the end of the first 🚀, then add …, leaving us with `"🚀…"`
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod truncated;
@@ -307,15 +276,3 @@ unsafe fn from_utf8_expect(src: &[u8]) -> &str {
 
 #[cfg(test)]
 mod test;
-
-#[cfg(doctest)]
-mod test_readme {
-    macro_rules! external_doc_test {
-        ($x:expr) => {
-            #[doc = $x]
-            extern "C" {}
-        };
-    }
-
-    external_doc_test!(include_str!("../README.md"));
-}
