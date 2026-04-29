@@ -23,3 +23,10 @@ path = "fuzz_targets/finish_with.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "write_sequence"
+path = "fuzz_targets/write_sequence.rs"
+test = false
+doc = false
+bench = false

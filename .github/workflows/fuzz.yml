@@ -22,9 +22,9 @@ on:
   workflow_dispatch:
     inputs:
       duration_seconds:
-        description: 'Total fuzzing time in seconds'
+        description: 'Per-target fuzzing time in seconds'
         required: false
-        default: '300'
+        default: '150'
 
 env:
   CARGO_TERM_COLOR: always
@@ -32,6 +32,12 @@ env:
 jobs:
   fuzz:
     runs-on: ubuntu-latest
+    strategy:
+      # Run targets in parallel rather than serially; each one has its own corpus and shares no
+      # state with the other.
+      fail-fast: false
+      matrix:
+        target: [finish_with, write_sequence]
     steps:
     - uses: actions/checkout@v4
     - name: Install nightly toolchain
@@ -40,22 +46,21 @@ jobs:
       run: cargo install cargo-fuzz --locked
     - name: Restore corpus
       # `key` is per-run via `github.run_id` so each job writes a fresh entry;
-      # `restore-keys` matches the shared `fuzz-corpus-finish_with-` prefix, so every run
-      # bootstraps from whatever corpus the most recent run left behind. This keeps the
-      # corpus growing across PRs and pushes without ref-specific fragmentation.
+      # `restore-keys` matches the per-target prefix, so every run bootstraps from whatever
+      # corpus the most recent run for the same target left behind.
       uses: actions/cache@v4
       with:
-        path: fuzz/corpus
-        key: fuzz-corpus-finish_with-${{ github.run_id }}
-        restore-keys: fuzz-corpus-finish_with-
+        path: fuzz/corpus/${{ matrix.target }}
+        key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+        restore-keys: fuzz-corpus-${{ matrix.target }}-
     - name: Run fuzzer
       run: |
-        cargo +nightly fuzz run finish_with -- \
-          -max_total_time=${{ github.event.inputs.duration_seconds || '300' }}
+        cargo +nightly fuzz run ${{ matrix.target }} -- \
+          -max_total_time=${{ github.event.inputs.duration_seconds || '150' }}
     - name: Upload crash artifacts
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: fuzz-artifacts
-        path: fuzz/artifacts/
+        name: fuzz-artifacts-${{ matrix.target }}
+        path: fuzz/artifacts/${{ matrix.target }}/
         if-no-files-found: ignore
