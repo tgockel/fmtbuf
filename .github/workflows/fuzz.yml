@@ -1,0 +1,61 @@
+name: fuzz
+
+on:
+  # Gate every PR that touches fuzz-relevant code, plus the same files on direct push to
+  # `trunk` as a backstop. `paths:`-filtered so docs-only / CI-only PRs don't pay the cost.
+  # No `schedule:` -- the fuzzer offers no signal when the code hasn't changed.
+  # Use `workflow_dispatch` for ad-hoc longer runs (e.g. before tagging a release).
+  pull_request:
+    branches: [trunk]
+    paths:
+      - 'src/**'
+      - 'fuzz/**'
+      - 'Cargo.toml'
+      - '.github/workflows/fuzz.yml'
+  push:
+    branches: [trunk]
+    paths:
+      - 'src/**'
+      - 'fuzz/**'
+      - 'Cargo.toml'
+      - '.github/workflows/fuzz.yml'
+  workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: 'Total fuzzing time in seconds'
+        required: false
+        default: '300'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install nightly toolchain
+      run: rustup toolchain install nightly --profile minimal --component rust-src
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz --locked
+    - name: Restore corpus
+      # `key` is per-run via `github.run_id` so each job writes a fresh entry;
+      # `restore-keys` matches the shared `fuzz-corpus-finish_with-` prefix, so every run
+      # bootstraps from whatever corpus the most recent run left behind. This keeps the
+      # corpus growing across PRs and pushes without ref-specific fragmentation.
+      uses: actions/cache@v4
+      with:
+        path: fuzz/corpus
+        key: fuzz-corpus-finish_with-${{ github.run_id }}
+        restore-keys: fuzz-corpus-finish_with-
+    - name: Run fuzzer
+      run: |
+        cargo +nightly fuzz run finish_with -- \
+          -max_total_time=${{ github.event.inputs.duration_seconds || '300' }}
+    - name: Upload crash artifacts
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fuzz-artifacts
+        path: fuzz/artifacts/
+        if-no-files-found: ignore
