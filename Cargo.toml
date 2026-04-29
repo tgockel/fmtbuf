@@ -10,6 +10,7 @@ keywords = ["buffer", "truncation", "utf-8", "ffi", "no-std"]
 categories = ["development-tools::ffi", "no-std"]
 readme = "README.md"
 repository = "https://github.com/tgockel/fmtbuf"
+documentation = "https://docs.rs/fmtbuf"
 
 [features]
 default = ["std"]
@@ -21,7 +22,7 @@ std = []
 clap = { version = "4.0.0", features = ["derive"] }
 
 [badges]
-maintenance = { status = "experimental" } # this line is currently experimental
+maintenance = { status = "passively-maintained" }
 
 [lints.rust]
 missing_docs = "deny"
