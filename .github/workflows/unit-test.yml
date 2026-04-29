@@ -30,3 +30,19 @@ jobs:
       run: cargo fmt --check
     - name: Clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
+
+  msrv:
+    # Pin to the `rust-version` in Cargo.toml so a stricter MSRV bump fails CI rather than silently
+    # working on the runner's current toolchain.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Read MSRV from Cargo.toml
+      id: msrv
+      run: echo "version=$(grep '^rust-version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_OUTPUT"
+    - name: Install MSRV toolchain
+      run: rustup toolchain install ${{ steps.msrv.outputs.version }} --profile minimal
+    - name: Build
+      run: cargo +${{ steps.msrv.outputs.version }} build --verbose
+    - name: Build/nostd
+      run: cargo +${{ steps.msrv.outputs.version }} build --no-default-features --verbose
