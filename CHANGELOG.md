@@ -5,8 +5,6 @@ All notable changes to this project will be documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
 ## [0.2.0]
 
 ### Added
@@ -20,6 +18,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `WriteBuf::written()` returns the written portion as a `&str` (companion to the existing `written_bytes()` accessor).
 - `fmt::Debug` impl on `WriteBuf` for diagnostic logging. Shows position, capacity, reserve, the truncated flag, and
   the validly-written `&str`; deliberately omits the raw target bytes (which may be uninitialized).
+- `WriteBuf::capacity()` returning the size of the target buffer.
+- `WriteBuf::remaining()` returning the number of bytes still available for `write_str` operations
+  (truncation-aware; saturates on `reserve > capacity - position`).
+- `WriteBuf::clear()` resetting `position` and the `truncated` flag for buffer reuse. The configured `reserve` is
+  preserved.
 
 ### Changed
 

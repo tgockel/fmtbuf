@@ -359,3 +359,89 @@ fn debug_format_describes_state() {
     assert!(s.contains("written: \"hi\""), "{s}");
     assert!(!s.contains("0xff"), "raw target bytes leaked: {s}");
 }
+
+#[test]
+fn capacity_returns_target_len() {
+    let mut buf: [u8; 16] = [0xff; 16];
+    let writer = WriteBuf::new(&mut buf);
+    assert_eq!(writer.capacity(), 16);
+
+    let mut buf: [u8; 0] = [];
+    let writer = WriteBuf::new(&mut buf);
+    assert_eq!(writer.capacity(), 0);
+
+    let mut buf: [u8; 8] = [0xff; 8];
+    let writer = WriteBuf::with_reserve(&mut buf, 3);
+    assert_eq!(
+        writer.capacity(),
+        8,
+        "capacity reflects target.len(), not target.len() - reserve"
+    );
+}
+
+#[test]
+fn remaining_decreases_with_writes() {
+    let mut buf: [u8; 16] = [0xff; 16];
+    let mut writer = WriteBuf::new(&mut buf);
+    assert_eq!(writer.remaining(), 16);
+
+    write!(writer, "hello").unwrap();
+    assert_eq!(writer.remaining(), 11);
+    assert_eq!(writer.position() + writer.remaining(), writer.capacity());
+}
+
+#[test]
+fn remaining_subtracts_reserve() {
+    let mut buf: [u8; 10] = [0xff; 10];
+    let mut writer = WriteBuf::with_reserve(&mut buf, 3);
+    assert_eq!(writer.remaining(), 7);
+
+    write!(writer, "abc").unwrap();
+    assert_eq!(writer.remaining(), 4);
+
+    // Reserve larger than the buffer saturates `remaining` to zero rather than underflowing.
+    let mut buf: [u8; 5] = [0xff; 5];
+    let writer = WriteBuf::with_reserve(&mut buf, 100);
+    assert_eq!(writer.remaining(), 0);
+}
+
+#[test]
+fn remaining_is_zero_after_truncation() {
+    let mut buf: [u8; 4] = [0xff; 4];
+    let mut writer = WriteBuf::new(&mut buf);
+    write!(writer, "abcdef").unwrap_err();
+    assert!(writer.truncated());
+    // Truncation may have rolled `position` back from a multi-byte UTF-8 boundary, leaving
+    // raw arithmetic capacity behind, but `remaining` reports zero because further writes
+    // would immediately fail.
+    assert_eq!(writer.remaining(), 0);
+}
+
+#[test]
+fn clear_resets_position_and_truncation() {
+    let mut buf: [u8; 4] = [0xff; 4];
+    let mut writer = WriteBuf::new(&mut buf);
+    let _ = write!(writer, "too long");
+    assert!(writer.truncated());
+
+    writer.clear();
+    assert_eq!(writer.position(), 0);
+    assert!(!writer.truncated());
+    assert_eq!(writer.remaining(), 4);
+    assert_eq!(writer.written(), "");
+
+    // The cleared buffer accepts a fresh write.
+    write!(writer, "ok").unwrap();
+    assert_eq!(writer.written(), "ok");
+    assert_eq!(writer.position(), 2);
+}
+
+#[test]
+fn clear_preserves_reserve() {
+    let mut buf: [u8; 8] = [0xff; 8];
+    let mut writer = WriteBuf::with_reserve(&mut buf, 3);
+    write!(writer, "abc").unwrap();
+    writer.clear();
+    assert_eq!(writer.reserve(), 3, "clear must not touch the reserve config");
+    assert_eq!(writer.remaining(), 5);
+}

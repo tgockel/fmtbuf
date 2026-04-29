@@ -89,6 +89,43 @@ impl<'a> WriteBuf<'a> {
         self.position
     }
 
+    /// Get the total size of the target buffer in bytes. This is fixed for the lifetime of the [`WriteBuf`].
+    #[inline]
+    #[must_use]
+    pub const fn capacity(&self) -> usize {
+        self.target.len()
+    }
+
+    /// Get the number of bytes still available for `write_str` to consume.
+    ///
+    /// This is `capacity - position - reserve` (saturating on `reserve`), or `0` if [`WriteBuf::truncated`] is set,
+    /// since further writes via [`core::fmt::Write`] would immediately fail. Use this as a fast pre-check before a
+    /// `write!` call:
+    ///
+    /// ```
+    /// use fmtbuf::WriteBuf;
+    /// use core::fmt::Write;
+    ///
+    /// let mut buf: [u8; 16] = [0xff; 16];
+    /// let mut writer = WriteBuf::new(&mut buf);
+    /// write!(writer, "hello").unwrap();
+    /// assert_eq!(writer.remaining(), 11);
+    /// ```
+    ///
+    /// To query the raw arithmetic distance regardless of the truncated flag, use
+    /// `buf.capacity().saturating_sub(buf.position()).saturating_sub(buf.reserve())`.
+    #[inline]
+    #[must_use]
+    pub fn remaining(&self) -> usize {
+        if self.truncated {
+            0
+        } else {
+            // `position <= target.len()` by invariant; `reserve` is unconstrained by `with_reserve`'s contract,
+            // so saturate only the second subtraction.
+            (self.target.len() - self.position).saturating_sub(self.reserve)
+        }
+    }
+
     /// Get if a truncated write has happened.
     #[must_use]
     pub fn truncated(&self) -> bool {
@@ -106,6 +143,32 @@ impl<'a> WriteBuf<'a> {
     /// it will not be reset.
     pub fn set_reserve(&mut self, count: usize) {
         self.reserve = count;
+    }
+
+    /// Reset the buffer for reuse. Sets [`position`](Self::position) to zero and clears the
+    /// [`truncated`](Self::truncated) flag, so the buffer can be written to again. The configured
+    /// [`reserve`](Self::reserve) is preserved, and the bytes already in the target are not overwritten (they are
+    /// already considered uninitialized/sentinel).
+    ///
+    /// ```
+    /// use fmtbuf::WriteBuf;
+    /// use core::fmt::Write;
+    ///
+    /// let mut buf: [u8; 4] = [0xff; 4];
+    /// let mut writer = WriteBuf::new(&mut buf);
+    /// // First attempt overflows.
+    /// let _ = write!(writer, "too long");
+    /// assert!(writer.truncated());
+    ///
+    /// // Reset and try a shorter string.
+    /// writer.clear();
+    /// write!(writer, "ok").unwrap();
+    /// assert_eq!(writer.written(), "ok");
+    /// ```
+    #[inline]
+    pub fn clear(&mut self) {
+        self.position = 0;
+        self.truncated = false;
     }
 
     /// Get the contents that have been written so far.
