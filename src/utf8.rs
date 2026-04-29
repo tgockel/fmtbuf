@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 const CODE_UNIT_INDICATE_WIDTH: [u8; 256] = [
     // low order nibble
     // 1, 2, 3, 4, 5, 6, 7, 8, 9, a, b, c, d, e, f

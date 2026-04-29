@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Contains the [`Truncated`] error type and the [`TruncatedResultExt`] helper trait.
 
 use core::fmt;
