@@ -39,8 +39,7 @@ use core::fmt;
 
 pub use truncated::Truncated;
 
-#[deprecated]
-pub use utf8::rfind_utf8_end;
+use utf8::rfind_utf8_end;
 
 /// A write buffer pointing to a `&mut [u8]`.
 ///
