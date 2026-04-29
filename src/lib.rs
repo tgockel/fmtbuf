@@ -70,7 +70,7 @@ impl<'a> WriteBuf<'a> {
     ///
     /// // Only 7 bytes are writable; the rest is held for the suffix.
     /// let _ = write!(writer, "abcdefgh");
-    /// let written = writer.finish_with("\0").unwrap_err().get();
+    /// let written = writer.finish_with("\0").unwrap_err().written();
     /// assert_eq!(written, "abcdefg\0");
     /// ```
     pub fn with_reserve(target: &'a mut [u8], reserve: usize) -> Self {
@@ -133,7 +133,7 @@ impl<'a> WriteBuf<'a> {
     ///
     /// Returns `Err(Truncated)` if any prior write into this buffer was rejected by truncation. The `Truncated`
     /// carries the same successfully-written `&str` that the `Ok` case would have returned, accessible via
-    /// [`Truncated::get`].
+    /// [`Truncated::written`].
     pub fn finish(self) -> Result<&'a str, Truncated<'a>> {
         self.into_result()
     }
@@ -163,7 +163,7 @@ impl<'a> WriteBuf<'a> {
     /// let writer = WriteBuf::new(&mut buf);
     ///
     /// // Finish writing with too many bytes:
-    /// let written = writer.finish_with("12345").unwrap_err().get();
+    /// let written = writer.finish_with("12345").unwrap_err().written();
     /// assert_eq!(written, "2345");
     /// ```
     ///
@@ -198,7 +198,7 @@ impl<'a> WriteBuf<'a> {
     /// let mut buf: [u8; 4] = [0xff; 4];
     /// let mut writer = WriteBuf::new(&mut buf);
     /// let _ = write!(writer, "abcdef");
-    /// assert_eq!(writer.finish_with_or("!", "...").unwrap_err().get(), "a...");
+    /// assert_eq!(writer.finish_with_or("!", "...").unwrap_err().written(), "a...");
     /// ```
     ///
     /// # Errors

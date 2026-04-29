@@ -64,7 +64,7 @@ fn main() {
     };
     let (contents, truncated) = match result {
         Ok(s) => (s, false),
-        Err(e) => (e.get(), true),
+        Err(e) => (e.written(), true),
     };
     println!("{contents}");
 

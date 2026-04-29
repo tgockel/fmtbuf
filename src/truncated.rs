@@ -11,10 +11,17 @@ use core::fmt;
 pub struct Truncated<'a>(pub(crate) &'a str);
 
 impl<'a> Truncated<'a> {
-    /// Get the inner string slice.
+    /// Get the successfully-written portion of the output. This is the same `&str` that the `Ok` arm of the
+    /// originating [`WriteBuf::finish`](crate::WriteBuf::finish) call would have carried.
     #[must_use]
-    pub fn get(&self) -> &'a str {
+    pub fn written(&self) -> &'a str {
         self.0
+    }
+
+    /// Get the byte length of the successfully-written portion.
+    #[must_use]
+    pub fn written_len(&self) -> usize {
+        self.0.len()
     }
 }
 
@@ -84,7 +91,7 @@ impl<'a> TruncatedResultExt<'a> for Result<&'a str, Truncated<'a>> {
     fn written(&self) -> &'a str {
         match self {
             Ok(s) => s,
-            Err(t) => t.get(),
+            Err(t) => t.written(),
         }
     }
 

@@ -18,7 +18,7 @@ let written = match writer.finish_with_or("!", "…") {
     Ok(s) => s, // <- won't be hit since 🚀🚀🚀 is 12 bytes
     Err(e) => {
         println!("writing was truncated");
-        e.get()
+        e.written()
     }
 };
 assert_eq!("🚀…", written);

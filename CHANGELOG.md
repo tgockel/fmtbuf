@@ -31,8 +31,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Replace `let n = writer.finish().unwrap();` with `let s = writer.finish().unwrap();` -- the success value is now
   `&str` rather than the byte count.
-- For the error path, use `e.get()` to access the partially-written `&str`:
-  `writer.finish().unwrap_or_else(|e| e.get())`.
+- For the error path, use `e.written()` to access the partially-written `&str`:
+  `writer.finish().unwrap_or_else(|e| e.written())`.
 - If a `finish_with*` call passed a non-`str` buffer, convert via `core::str::from_utf8` first.
 
 ## [0.1.2] — 2025-09-24
