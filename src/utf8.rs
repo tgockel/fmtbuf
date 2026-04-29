@@ -31,21 +31,9 @@ pub const fn utf8_char_width(code_unit: u8) -> Option<usize> {
     }
 }
 
-/// Find the end of the last valid UTF-8 code point.
-///
-/// # Deprecated
-///
-/// This function will not be part of the public API in a future release.
-///
-/// # Parameters
-///
-/// * `buf`: This should be an almost-valid UTF-8 encoded sequence. The final bytes can be a UTF-8 multi-byte sequence
-///   which is incomplete.
-///
-/// # Returns
-///
-/// The number of code units which are valid UTF-8 (assuming `buf` adheres to the above specification).
-pub fn rfind_utf8_end(buf: &[u8]) -> usize {
+/// Find the byte index of the end of the last complete UTF-8 code point in `buf`. Trailing bytes that form an
+/// incomplete multi-byte sequence are excluded.
+pub(crate) fn rfind_utf8_end(buf: &[u8]) -> usize {
     let mut position = buf.len();
     // If the end of the string is middle of writing a UTF-8 multibyte sequence, we need to reverse to before the
     // code units for this incomplete code point.

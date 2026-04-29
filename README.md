@@ -7,7 +7,7 @@ function interfaces for C, where strings are expected to have a null terminator.
 
 ```rust
 use fmtbuf::WriteBuf;
-use std::fmt::Write;
+use core::fmt::Write;
 
 let mut buf: [u8; 10] = [0; 10];
 let mut writer = WriteBuf::new(&mut buf);
@@ -31,7 +31,7 @@ A few things happened in that example:
 3. This can't fit into 10 bytes, so only `"🚀🚀"` is stored and the `writer` is noted as having truncated writes
 4. We finish the buffer with `"!"` on success or `"…"` (a.k.a. `b"\xe2\x80\xa6"`) on truncation
 5. Since we noted truncation in step #3, we try to write `"…"`, but this can not fit into the buffer either, since
-   8 (`"🚀🚀".len()`) + 3 (`"…".len()`) > 12 (`buf.len()`)
+   8 (`"🚀🚀".len()`) + 3 (`"…".len()`) > 10 (`buf.len()`)
 6. Roll the buffer back to the end of the first 🚀, then add …, leaving us with `"🚀…"`
 
 Usage
@@ -79,7 +79,7 @@ Features
 Support for `!#[no_std]` is enabled by disabling the default features and not re-enabling the `"std"` feature.
 
 ```toml
-fmtbuf = { version = "*", default_features = false }
+fmtbuf = { version = "*", default-features = false }
 ```
 
 F.A.Q.
@@ -180,7 +180,7 @@ Figuring that out is the responsibility of a higher-level construct.
 
 #### �
 
-This library implements [`std::fmt::Write`](https://doc.rust-lang.org/stable/std/fmt/trait.Write.html), which only
+This library implements [`core::fmt::Write`](https://doc.rust-lang.org/stable/core/fmt/trait.Write.html), which only
 accepts UTF-8-encoded data.
 There is no place for � in this library.
 However, the result of a truncated run might be replaced by � for presentation at a higher level.

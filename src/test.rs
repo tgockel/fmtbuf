@@ -170,6 +170,31 @@ fn finish_with_full_overwrite_utf8() {
 }
 
 #[test]
+fn finish_with_all_continuation_bytes() {
+    // The 2-byte tail of "🚀" (b"\xf0\x9f\x9a\x80") is b"\x9a\x80" — both UTF-8
+    // continuation bytes, so no valid character start can be found. The buffer
+    // is cleared and the result is reported as truncated.
+    let mut buf: [u8; 2] = [0xff; 2];
+    let writer = WriteBuf::new(&mut buf);
+
+    let written = writer.finish_with("🚀").unwrap_err().take();
+    assert_eq!(written, "");
+}
+
+#[test]
+fn write_rejected_when_remaining_below_reserve() {
+    let mut buf: [u8; 4] = [0xff; 4];
+    let mut writer = WriteBuf::with_reserve(&mut buf, 10);
+
+    writer.write_str("a").unwrap_err();
+    assert!(writer.truncated());
+    assert_eq!(writer.position(), 0);
+
+    let written = writer.finish().unwrap_err().take();
+    assert_eq!(written, "");
+}
+
+#[test]
 fn set_reserve_should_not_change_written() {
     let mut buf: [u8; 10] = [0xff; 10];
     let mut writer = WriteBuf::new(&mut buf);

@@ -14,7 +14,7 @@ use utf8::rfind_utf8_end;
 ///
 /// ```
 /// use fmtbuf::WriteBuf;
-/// use std::fmt::Write;
+/// use core::fmt::Write;
 ///
 /// // The buffer to write into. The contents can be uninitialized, but using a
 /// // bogus `\xff` sigil for demonstration.
@@ -55,6 +55,20 @@ impl<'a> WriteBuf<'a> {
     /// useful when you know that you will always `finish_with` a null terminator or other character.
     ///
     /// It is allowed to have `target.len() < reserve`, but this can never be written to.
+    ///
+    /// ```
+    /// use fmtbuf::WriteBuf;
+    /// use core::fmt::Write;
+    ///
+    /// // Reserve one byte at the end for a null terminator.
+    /// let mut buf: [u8; 8] = [0xff; 8];
+    /// let mut writer = WriteBuf::with_reserve(&mut buf, 1);
+    ///
+    /// // Only 7 bytes are writable; the rest is held for the suffix.
+    /// let _ = write!(writer, "abcdefgh");
+    /// let written = writer.finish_with("\0").unwrap_err().take();
+    /// assert_eq!(written, "abcdefg\0");
+    /// ```
     pub fn with_reserve(target: &'a mut [u8], reserve: usize) -> Self {
         Self {
             target,
@@ -123,8 +137,8 @@ impl<'a> WriteBuf<'a> {
     /// Finish the buffer, adding the `suffix` to the end. A common use case for this is to add a null terminator.
     ///
     /// This operates slightly differently than the normal format writing function `write_str` in that the `suffix` is
-    /// always put at the end. The only case where this will not happen is when `suffix.len()` is less than the size of
-    /// the buffer originally provided. In this case, the last bit of `suffix` will be copied (starting at a valid UTF-8
+    /// always put at the end. The only case where this will not happen is when `suffix.len()` exceeds the size of the
+    /// buffer originally provided. In this case, the last bit of `suffix` will be copied (starting at a valid UTF-8
     /// sequence start; e.g.: writing `"🚀..."` to a 5 byte buffer will leave you with just `"..."`, no matter what was
     /// written before).
     ///
@@ -149,6 +163,23 @@ impl<'a> WriteBuf<'a> {
 
     /// Finish the buffer by adding `normal_suffix` if not truncated or `truncated_suffix` if the buffer will be
     /// truncated. This operates the same as [`WriteBuf::finish_with`] in every other way.
+    ///
+    /// ```
+    /// use fmtbuf::WriteBuf;
+    /// use core::fmt::Write;
+    ///
+    /// // Plenty of room: the normal suffix is appended.
+    /// let mut buf: [u8; 8] = [0xff; 8];
+    /// let mut writer = WriteBuf::new(&mut buf);
+    /// write!(writer, "abc").unwrap();
+    /// assert_eq!(writer.finish_with_or("!", "...").unwrap(), "abc!");
+    ///
+    /// // Doesn't fit: the truncated suffix is used instead.
+    /// let mut buf: [u8; 4] = [0xff; 4];
+    /// let mut writer = WriteBuf::new(&mut buf);
+    /// let _ = write!(writer, "abcdef");
+    /// assert_eq!(writer.finish_with_or("!", "...").unwrap_err().take(), "a...");
+    /// ```
     pub fn finish_with_or(
         self,
         normal_suffix: impl AsRef<str>,
@@ -266,8 +297,8 @@ unsafe fn from_utf8_expect(src: &[u8]) -> &str {
     #[cfg(debug_assertions)]
     return core::str::from_utf8(src).expect("buffer should have been valid UTF-8");
 
-    // safety: The only way to write into the buffer is with valid UTF-8, so there is no reason to check the
-    // contents for validity. They're still checked in debug builds just in case, though.
+    // safety: The contents are valid UTF-8 by construction; debug builds verify the invariant via the
+    // `cfg(debug_assertions)` branch above.
     #[cfg(not(debug_assertions))]
     unsafe {
         core::str::from_utf8_unchecked(src)
