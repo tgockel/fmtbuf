@@ -5,6 +5,9 @@ This little open-source project is full Rust with no external dependencies, so e
 of the box.
 Just grab [Rust](https://www.rust-lang.org/) from [Rustup](https://rustup.rs/) and you're good to go.
 
+The minimum supported Rust version (MSRV) is tracked by the `rust-version` field in `Cargo.toml`. CI builds the crate
+against the MSRV toolchain, so a feature newer than that will fail there even if your local toolchain accepts it.
+
 Building
 --------
 
