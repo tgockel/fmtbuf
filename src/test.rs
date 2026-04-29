@@ -17,7 +17,7 @@ static TEST_CASES: &[(&str, usize)] = &[
 
 #[test]
 fn rfind_utf8_end_test() {
-    for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+    for (input, last_valid_idx_after_cut) in TEST_CASES {
         let result = rfind_utf8_end(input.as_bytes());
         assert_eq!(result, input.len(), "input=\"{input}\"");
         if input.is_empty() {
@@ -34,7 +34,7 @@ fn rfind_utf8_end_test() {
 
 #[test]
 fn format_enough_space() {
-    for (input, _) in TEST_CASES.iter() {
+    for (input, _) in TEST_CASES {
         let mut buf: [u8; 128] = [0xff; 128];
         let mut writer = WriteBuf::new(&mut buf);
 
@@ -48,9 +48,9 @@ fn format_enough_space() {
 
 #[test]
 fn format_enough_space_just_enough_reserved() {
-    for (input, _) in TEST_CASES.iter() {
+    for (input, _) in TEST_CASES {
         let mut buf: [u8; 128] = [0xff; 128];
-        let mut writer = WriteBuf::with_reserve(&mut buf[..input.len() + 1], 1);
+        let mut writer = WriteBuf::with_reserve(&mut buf[..=input.len()], 1);
 
         writer.write_str(input).unwrap();
         assert_eq!(input.len(), writer.position());
@@ -62,7 +62,7 @@ fn format_enough_space_just_enough_reserved() {
 
 #[test]
 fn format_truncation() {
-    for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+    for (input, last_valid_idx_after_cut) in TEST_CASES {
         if input.is_empty() {
             continue;
         }
@@ -86,7 +86,7 @@ struct SimpleString {
 }
 
 impl SimpleString {
-    pub fn from_segments(segments: &[&str]) -> Self {
+    fn from_segments(segments: &[&str]) -> Self {
         let mut out = Self {
             storage: [0; 128],
             size: 0,
@@ -97,13 +97,13 @@ impl SimpleString {
         out
     }
 
-    pub fn append(&mut self, value: &str) {
+    fn append(&mut self, value: &str) {
         let value = value.as_bytes();
         self.storage[self.size..self.size + value.len()].copy_from_slice(value);
         self.size += value.len();
     }
 
-    pub fn as_str(&self) -> &str {
+    fn as_str(&self) -> &str {
         core::str::from_utf8(&self.storage[..self.size]).unwrap()
     }
 }
@@ -116,7 +116,7 @@ impl From<&str> for SimpleString {
 
 #[test]
 fn finish_with_enough_space() {
-    for (input, _) in TEST_CASES.iter() {
+    for (input, _) in TEST_CASES {
         let mut buf: [u8; 128] = [0xff; 128];
         let mut writer = WriteBuf::new(&mut buf);
 
@@ -130,7 +130,7 @@ fn finish_with_enough_space() {
 
 #[test]
 fn finish_with_overwrite() {
-    for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+    for (input, last_valid_idx_after_cut) in TEST_CASES {
         if input.is_empty() {
             continue;
         }
@@ -211,7 +211,7 @@ fn set_reserve_should_not_change_written() {
 
 #[test]
 fn truncated_result_ext_ok() {
-    for (input, _) in TEST_CASES.iter() {
+    for (input, _) in TEST_CASES {
         let mut buf: [u8; 128] = [0xff; 128];
         let mut writer = WriteBuf::new(&mut buf);
 
@@ -226,7 +226,7 @@ fn truncated_result_ext_ok() {
 
 #[test]
 fn truncated_result_ext_err() {
-    for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+    for (input, last_valid_idx_after_cut) in TEST_CASES {
         if input.is_empty() {
             continue;
         }

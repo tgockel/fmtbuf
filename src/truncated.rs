@@ -11,6 +11,7 @@ pub struct Truncated<'a>(pub(crate) &'a str);
 
 impl<'a> Truncated<'a> {
     /// Get the inner string slice.
+    #[must_use]
     pub fn get(&self) -> &'a str {
         self.0
     }

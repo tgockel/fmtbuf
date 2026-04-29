@@ -1,5 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(
+    clippy::doc_link_with_quotes,
+    reason = "README.md links use bracketed text containing quoted Unicode names like `\"U+200D\"`; these are real Markdown links, not malformed intra-doc links."
+)]
 
 mod truncated;
 mod utf8;
@@ -80,16 +84,19 @@ impl<'a> WriteBuf<'a> {
 
     /// Get the position in the target buffer. The value is one past the end of written content and the next position to
     /// be written to.
+    #[must_use]
     pub fn position(&self) -> usize {
         self.position
     }
 
     /// Get if a truncated write has happened.
+    #[must_use]
     pub fn truncated(&self) -> bool {
         self.truncated
     }
 
     /// Get the count of reserved bytes.
+    #[must_use]
     pub fn reserve(&self) -> usize {
         self.reserve
     }
@@ -102,11 +109,13 @@ impl<'a> WriteBuf<'a> {
     }
 
     /// Get the contents that have been written so far.
+    #[must_use]
     pub fn written_bytes(&self) -> &[u8] {
         &self.target[..self.position]
     }
 
     /// Get the contents that have been written so far.
+    #[must_use]
     pub fn written(&self) -> &str {
         // safety: The only way to write into the buffer is with valid UTF-8, so there is no reason to check the
         // contents for validity.
@@ -118,8 +127,13 @@ impl<'a> WriteBuf<'a> {
     ///
     /// # Returns
     ///
-    /// In both the `Ok` and `Err` cases, the successfully-written portion of the output is returned as a `&str`. The
-    /// `Ok` case indicates the truncation did not occur, while `Err` indicates that it did.
+    /// On success, the successfully-written portion of the output as a `&str`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(Truncated)` if any prior write into this buffer was rejected by truncation. The `Truncated`
+    /// carries the same successfully-written `&str` that the `Ok` case would have returned, accessible via
+    /// [`Truncated::get`].
     pub fn finish(self) -> Result<&'a str, Truncated<'a>> {
         self.into_result()
     }
@@ -153,9 +167,15 @@ impl<'a> WriteBuf<'a> {
     /// assert_eq!(written, "2345");
     /// ```
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// The returned value has the same meaning as [`WriteBuf::finish`].
+    /// Returns `Err(Truncated)` if any prior write into this buffer was rejected by truncation, or if `suffix`
+    /// did not fit alongside the prior content. The `Truncated` carries the successfully-written `&str` (which
+    /// includes the suffix when the suffix could be placed). See [`WriteBuf::finish`] for the full semantics.
+    #[allow(
+        clippy::used_underscore_items,
+        reason = "`_finish_with` is the shared internal helper for both `finish_with` and `finish_with_or`; the leading underscore disambiguates it from this public method."
+    )]
     pub fn finish_with(self, suffix: impl AsRef<str>) -> Result<&'a str, Truncated<'a>> {
         let suffix = suffix.as_ref();
         self._finish_with(suffix, suffix)
@@ -180,6 +200,16 @@ impl<'a> WriteBuf<'a> {
     /// let _ = write!(writer, "abcdef");
     /// assert_eq!(writer.finish_with_or("!", "...").unwrap_err().get(), "a...");
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(Truncated)` when truncation occurred -- either because a prior write was rejected, or
+    /// because `normal_suffix` could not be placed and `truncated_suffix` was used instead. The `Truncated`
+    /// carries the successfully-written `&str`. See [`WriteBuf::finish`] for the full semantics.
+    #[allow(
+        clippy::used_underscore_items,
+        reason = "`_finish_with` is the shared internal helper for both `finish_with` and `finish_with_or`; the leading underscore disambiguates it from this public method."
+    )]
     pub fn finish_with_or(
         self,
         normal_suffix: impl AsRef<str>,
@@ -267,21 +297,25 @@ impl<'a> WriteBuf<'a> {
     }
 }
 
-impl<'a> fmt::Write for WriteBuf<'a> {
+impl fmt::Write for WriteBuf<'_> {
     /// Append `s` to the target buffer.
     ///
-    /// # Error
+    /// # Errors
     ///
-    /// An error is returned if the entirety of `s` can not fit in the target buffer or if a previous `write_str`
-    /// operation failed. If this occurs, as much as `s` that can fit into the buffer will be written up to the last
-    /// valid Unicode code point. In other words, if the target buffer have 6 writable bytes left and `s` is the two
-    /// code points `"♡🐶"` (a.k.a.: the 7 byte `b"\xe2\x99\xa1\xf0\x9f\x90\xb6"`), then only `♡` will make it to the
-    /// output buffer, making the target of your ♡ ambiguous.
+    /// Returns `Err(fmt::Error)` if the entirety of `s` can not fit in the target buffer or if a previous
+    /// `write_str` operation failed. When the input doesn't fit, as much of `s` as can fit into the buffer will
+    /// be written up to the last valid Unicode code point. In other words, if the target buffer has 6 writable
+    /// bytes left and `s` is the two code points `"♡🐶"` (a.k.a. the 7 byte `b"\xe2\x99\xa1\xf0\x9f\x90\xb6"`),
+    /// then only `♡` will make it to the output buffer, making the target of your ♡ ambiguous.
     ///
     /// Truncation marks this buffer as truncated, which can be observed with [`WriteBuf::truncated`]. Future write
     /// attempts will immediately return in `Err`. This also affects the behavior of [`WriteBuf::finish`] family of
     /// functions, which will always return the `Err` case to indicate truncation. For [`WriteBuf::finish_with_or`],
     /// the `normal_suffix` will not be attempted.
+    #[allow(
+        clippy::used_underscore_items,
+        reason = "`_write` is the shared internal helper for `fmt::Write`; the leading underscore distinguishes it from the trait method."
+    )]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self._write(s.as_bytes())
     }

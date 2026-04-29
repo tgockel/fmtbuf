@@ -22,3 +22,12 @@ clap = { version = "4.0.0", features = ["derive"] }
 
 [badges]
 maintenance = { status = "experimental" } # this line is currently experimental
+
+[lints.rust]
+missing_docs = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+unreachable_pub = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"

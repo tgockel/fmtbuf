@@ -22,7 +22,7 @@ const CODE_UNIT_INDICATE_WIDTH: [u8; 256] = [
 /// If `code_unit` is a UTF-8 starting character, then return `Some(len)`, where `len` is the number of code units the
 /// encoded run represents. If `code_unit` is a continuation character (a value seen in the middle of an encoded run),
 /// then return `None`.
-pub const fn utf8_char_width(code_unit: u8) -> Option<usize> {
+pub(crate) const fn utf8_char_width(code_unit: u8) -> Option<usize> {
     let x = CODE_UNIT_INDICATE_WIDTH[code_unit as usize];
     if x == 0 {
         None
