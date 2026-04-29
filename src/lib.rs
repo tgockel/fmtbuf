@@ -297,6 +297,18 @@ impl<'a> WriteBuf<'a> {
     }
 }
 
+impl fmt::Debug for WriteBuf<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WriteBuf")
+            .field("position", &self.position)
+            .field("capacity", &self.target.len())
+            .field("reserve", &self.reserve)
+            .field("truncated", &self.truncated)
+            .field("written", &self.written())
+            .finish()
+    }
+}
+
 impl fmt::Write for WriteBuf<'_> {
     /// Append `s` to the target buffer.
     ///
