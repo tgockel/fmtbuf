@@ -20,7 +20,7 @@ fn rfind_utf8_end_test() {
     for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
         let result = rfind_utf8_end(input.as_bytes());
         assert_eq!(result, input.len(), "input=\"{input}\"");
-        if input.len() == 0 {
+        if input.is_empty() {
             continue;
         }
         let input_truncated = &input.as_bytes()[..input.len() - 1];
@@ -63,7 +63,7 @@ fn format_enough_space_just_enough_reserved() {
 #[test]
 fn format_truncation() {
     for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
-        if input.len() == 0 {
+        if input.is_empty() {
             continue;
         }
 
@@ -131,7 +131,7 @@ fn finish_with_enough_space() {
 #[test]
 fn finish_with_overwrite() {
     for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
-        if input.len() == 0 {
+        if input.is_empty() {
             continue;
         }
 
@@ -227,7 +227,7 @@ fn truncated_result_ext_ok() {
 #[test]
 fn truncated_result_ext_err() {
     for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
-        if input.len() == 0 {
+        if input.is_empty() {
             continue;
         }
 
