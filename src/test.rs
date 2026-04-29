@@ -272,3 +272,90 @@ fn truncated_result_ext_no_unwrap() {
     let written: &str = writer.finish_with_or("!", "...").written();
     assert_eq!(written, "a...");
 }
+
+#[test]
+fn zero_length_buffer_does_not_panic() {
+    // `write_str` to an empty buffer is rejected (truncated), not a panic.
+    let mut buf: [u8; 0] = [];
+    let mut writer = WriteBuf::new(&mut buf);
+    write!(writer, "anything").unwrap_err();
+    assert!(writer.truncated());
+    assert_eq!(writer.position(), 0);
+    assert_eq!(writer.written(), "");
+
+    // `finish` on a fresh empty buffer reports `Ok("")` because no write was attempted.
+    let mut buf: [u8; 0] = [];
+    let written = WriteBuf::new(&mut buf).finish().unwrap();
+    assert_eq!(written, "");
+
+    // `finish_with` on a fresh empty buffer cannot place the suffix; reports truncated empty.
+    let mut buf: [u8; 0] = [];
+    let result = WriteBuf::new(&mut buf).finish_with("x");
+    assert!(result.is_err());
+    assert_eq!(result.written(), "");
+
+    // `finish_with_or` likewise.
+    let mut buf: [u8; 0] = [];
+    let result = WriteBuf::new(&mut buf).finish_with_or("!", "...");
+    assert!(result.is_err());
+    assert_eq!(result.written(), "");
+}
+
+#[test]
+fn reserve_larger_than_buffer_through_finish_with() {
+    // `with_reserve` allows `reserve > target.len()`; no write succeeds, and the finish family
+    // still does its best to place a suffix (writes ignore reserve once the buffer is being
+    // closed out).
+    let mut buf: [u8; 4] = [0xff; 4];
+    let mut writer = WriteBuf::with_reserve(&mut buf, 10);
+    write!(writer, "x").unwrap_err();
+    assert!(writer.truncated());
+    let result = writer.finish_with("!");
+    assert!(result.is_err(), "buffer is marked truncated");
+    assert_eq!(result.written(), "!");
+
+    let mut buf: [u8; 4] = [0xff; 4];
+    let mut writer = WriteBuf::with_reserve(&mut buf, 10);
+    write!(writer, "x").unwrap_err();
+    let result = writer.finish_with_or("normal", "trunc");
+    assert!(result.is_err());
+    // `truncated` (5 bytes) does not fit in the 4-byte buffer; the documented behavior is to
+    // keep the last bytes that start at a valid UTF-8 boundary -- here, "runc".
+    assert_eq!(result.written(), "runc");
+}
+
+#[test]
+fn truncation_flag_survives_subsequent_writes() {
+    // After a write hits truncation, the next `write_str` must immediately return `Err` and
+    // leave the previous `position` unchanged.
+    let mut buf: [u8; 4] = [0xff; 4];
+    let mut writer = WriteBuf::new(&mut buf);
+    write!(writer, "abcdef").unwrap_err();
+    assert!(writer.truncated());
+    let position_after_first = writer.position();
+
+    write!(writer, "ghi").unwrap_err();
+    assert!(writer.truncated());
+    assert_eq!(writer.position(), position_after_first);
+
+    let result = writer.finish_with_or("!", "...");
+    assert!(result.is_err());
+    assert_eq!(result.written(), "a...");
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn debug_format_describes_state() {
+    // The `Debug` impl shows the user-visible state but never the raw target bytes (those
+    // can be uninitialized sentinels). Gated on `std` because `format!` requires `alloc`.
+    let mut buf: [u8; 8] = [0xff; 8];
+    let mut writer = WriteBuf::new(&mut buf);
+    write!(writer, "hi").unwrap();
+    let s = format!("{writer:?}");
+    assert!(s.contains("position: 2"), "{s}");
+    assert!(s.contains("capacity: 8"), "{s}");
+    assert!(s.contains("reserve: 0"), "{s}");
+    assert!(s.contains("truncated: false"), "{s}");
+    assert!(s.contains("written: \"hi\""), "{s}");
+    assert!(!s.contains("0xff"), "raw target bytes leaked: {s}");
+}
