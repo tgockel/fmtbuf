@@ -6,7 +6,7 @@ mod utf8;
 
 use core::fmt;
 
-pub use truncated::Truncated;
+pub use truncated::{Truncated, TruncatedResultExt};
 
 use utf8::rfind_utf8_end;
 

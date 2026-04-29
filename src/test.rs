@@ -1,4 +1,4 @@
-use crate::{utf8::rfind_utf8_end, WriteBuf};
+use crate::{utf8::rfind_utf8_end, TruncatedResultExt, WriteBuf};
 use core::fmt::Write;
 
 /// * `.0`: Input string
@@ -207,4 +207,68 @@ fn set_reserve_should_not_change_written() {
 
     let written = writer.finish_with_or("", "!").unwrap();
     assert_eq!("0123456789", written);
+}
+
+#[test]
+fn truncated_result_ext_ok() {
+    for (input, _) in TEST_CASES.iter() {
+        let mut buf: [u8; 128] = [0xff; 128];
+        let mut writer = WriteBuf::new(&mut buf);
+
+        writer.write_str(input).unwrap();
+        let result = writer.finish();
+        assert!(result.is_ok(), "input=\"{input}\"");
+        assert_eq!(result.written(), *input, "input=\"{input}\"");
+        assert_eq!(result.written_len(), input.len(), "input=\"{input}\"");
+        assert!(!result.is_truncated(), "input=\"{input}\"");
+    }
+}
+
+#[test]
+fn truncated_result_ext_err() {
+    for (input, last_valid_idx_after_cut) in TEST_CASES.iter() {
+        if input.len() == 0 {
+            continue;
+        }
+
+        let mut buf: [u8; 128] = [0xff; 128];
+        let mut writer = WriteBuf::new(&mut buf[..input.len() - 1]);
+
+        let _ = writer.write_str(input);
+        let result = writer.finish();
+        assert!(result.is_err(), "input=\"{input}\"");
+        assert_eq!(result.written_len(), *last_valid_idx_after_cut, "input=\"{input}\"");
+        assert_eq!(
+            result.written(),
+            &input[..*last_valid_idx_after_cut],
+            "input=\"{input}\""
+        );
+        assert!(result.is_truncated(), "input=\"{input}\"");
+    }
+}
+
+#[test]
+fn truncated_result_ext_empty_err() {
+    // Mirrors `finish_with_all_continuation_bytes`: the buffer is too small to
+    // hold any valid UTF-8 prefix of the suffix, so `Err` carries an empty `&str`.
+    let mut buf: [u8; 2] = [0xff; 2];
+    let writer = WriteBuf::new(&mut buf);
+
+    let result = writer.finish_with("🚀");
+    assert!(result.is_err());
+    assert_eq!(result.written(), "");
+    assert_eq!(result.written_len(), 0);
+    assert!(result.is_truncated());
+}
+
+#[test]
+fn truncated_result_ext_no_unwrap() {
+    // The trait dispatches directly on the raw `Result` from the finish family,
+    // without needing an intermediate `.unwrap()` or `.get()`.
+    let mut buf: [u8; 4] = [0xff; 4];
+    let mut writer = WriteBuf::new(&mut buf);
+    let _ = write!(writer, "abcdef");
+
+    let written: &str = writer.finish_with_or("!", "...").written();
+    assert_eq!(written, "a...");
 }

@@ -42,7 +42,7 @@ user provides the buffer.
 
 ```rust
 use std::{ffi, fmt::Write, io::Error};
-use fmtbuf::WriteBuf;
+use fmtbuf::{TruncatedResultExt, WriteBuf};
 
 #[no_mangle]
 pub unsafe extern "C" fn mylib_strerror(
@@ -64,10 +64,13 @@ pub unsafe extern "C" fn mylib_strerror(
     // library's finish___ functions
     let _ = write!(writer, "{}", err.as_ref().unwrap());
 
-    // null-terminate buffer or add "..." if it was truncated
-    let _written = writer.finish_with_or("\0", "...\0")
-        // Err value contains the part successfully written
-        .unwrap_or_else(|e| e.get());
+    // null-terminate buffer or add "..." if it was truncated.
+    // `TruncatedResultExt` extracts the written `&str` (and its
+    // byte length) regardless of whether truncation occurred --
+    // useful for setting an FFI out-param.
+    let result = writer.finish_with_or("\0", "...\0");
+    let _written = result.written();
+    let _written_len = result.written_len();
 }
 ```
 
