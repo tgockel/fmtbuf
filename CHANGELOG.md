@@ -9,14 +9,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- `Truncated<T>` error type, returned by the `WriteBuf::finish*` family. Carries the portion of the output that was
+- `Truncated<'_>` error type, returned by the `WriteBuf::finish*` family. Carries the portion of the output that was
   successfully written so callers don't have to track it separately.
 - `WriteBuf::written()` returns the written portion as a `&str` (companion to the existing `written_bytes()` accessor).
 
 ### Changed
 
 - **Breaking:** `WriteBuf::finish`, `WriteBuf::finish_with`, and `WriteBuf::finish_with_or` now return
-  `Result<&str, Truncated<&str>>` instead of `Result<usize, usize>`. The new shape gives callers the validated
+  `Result<&str, Truncated<'_>>` instead of `Result<usize, usize>`. The new shape gives callers the validated
   string slice directly without a separate `from_utf8` step on the underlying buffer.
 - **Breaking:** `finish_with` and `finish_with_or` now require `impl AsRef<str>` for the suffix arguments
   (previously `impl AsRef<[u8]>`). This keeps the UTF-8 invariant at the type level rather than relying on a
@@ -31,8 +31,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Replace `let n = writer.finish().unwrap();` with `let s = writer.finish().unwrap();` -- the success value is now
   `&str` rather than the byte count.
-- For the error path, use `e.take()` (or `e.get()`) to access the partially-written `&str`:
-  `writer.finish().unwrap_or_else(|e| e.take())`.
+- For the error path, use `e.get()` to access the partially-written `&str`:
+  `writer.finish().unwrap_or_else(|e| e.get())`.
 - If a `finish_with*` call passed a non-`str` buffer, convert via `core::str::from_utf8` first.
 
 ## [0.1.2] — 2025-09-24

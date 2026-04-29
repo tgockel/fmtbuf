@@ -66,7 +66,7 @@ impl<'a> WriteBuf<'a> {
     ///
     /// // Only 7 bytes are writable; the rest is held for the suffix.
     /// let _ = write!(writer, "abcdefgh");
-    /// let written = writer.finish_with("\0").unwrap_err().take();
+    /// let written = writer.finish_with("\0").unwrap_err().get();
     /// assert_eq!(written, "abcdefg\0");
     /// ```
     pub fn with_reserve(target: &'a mut [u8], reserve: usize) -> Self {
@@ -120,11 +120,11 @@ impl<'a> WriteBuf<'a> {
     ///
     /// In both the `Ok` and `Err` cases, the successfully-written portion of the output is returned as a `&str`. The
     /// `Ok` case indicates the truncation did not occur, while `Err` indicates that it did.
-    pub fn finish(self) -> Result<&'a str, Truncated<&'a str>> {
+    pub fn finish(self) -> Result<&'a str, Truncated<'a>> {
         self.into_result()
     }
 
-    fn into_result(self) -> Result<&'a str, Truncated<&'a str>> {
+    fn into_result(self) -> Result<&'a str, Truncated<'a>> {
         // safety: The only way to write into the buffer is with valid UTF-8
         let written = unsafe { from_utf8_expect(&self.target[..self.position]) };
         if self.truncated {
@@ -149,14 +149,14 @@ impl<'a> WriteBuf<'a> {
     /// let writer = WriteBuf::new(&mut buf);
     ///
     /// // Finish writing with too many bytes:
-    /// let written = writer.finish_with("12345").unwrap_err().take();
+    /// let written = writer.finish_with("12345").unwrap_err().get();
     /// assert_eq!(written, "2345");
     /// ```
     ///
     /// # Returns
     ///
     /// The returned value has the same meaning as [`WriteBuf::finish`].
-    pub fn finish_with(self, suffix: impl AsRef<str>) -> Result<&'a str, Truncated<&'a str>> {
+    pub fn finish_with(self, suffix: impl AsRef<str>) -> Result<&'a str, Truncated<'a>> {
         let suffix = suffix.as_ref();
         self._finish_with(suffix, suffix)
     }
@@ -178,17 +178,17 @@ impl<'a> WriteBuf<'a> {
     /// let mut buf: [u8; 4] = [0xff; 4];
     /// let mut writer = WriteBuf::new(&mut buf);
     /// let _ = write!(writer, "abcdef");
-    /// assert_eq!(writer.finish_with_or("!", "...").unwrap_err().take(), "a...");
+    /// assert_eq!(writer.finish_with_or("!", "...").unwrap_err().get(), "a...");
     /// ```
     pub fn finish_with_or(
         self,
         normal_suffix: impl AsRef<str>,
         truncated_suffix: impl AsRef<str>,
-    ) -> Result<&'a str, Truncated<&'a str>> {
+    ) -> Result<&'a str, Truncated<'a>> {
         self._finish_with(normal_suffix.as_ref(), truncated_suffix.as_ref())
     }
 
-    fn _finish_with(mut self, normal: &str, truncated: &str) -> Result<&'a str, Truncated<&'a str>> {
+    fn _finish_with(mut self, normal: &str, truncated: &str) -> Result<&'a str, Truncated<'a>> {
         let remaining = self.target.len() - self.position();
 
         // If the truncated case is shorter than the normal case, then writing it might still work

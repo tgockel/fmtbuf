@@ -18,7 +18,7 @@ let written = match writer.finish_with_or("!", "…") {
     Ok(s) => s, // <- won't be hit since 🚀🚀🚀 is 12 bytes
     Err(e) => {
         println!("writing was truncated");
-        e.take()
+        e.get()
     }
 };
 assert_eq!("🚀…", written);
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn mylib_strerror(
     // null-terminate buffer or add "..." if it was truncated
     let _written = writer.finish_with_or("\0", "...\0")
         // Err value contains the part successfully written
-        .unwrap_or_else(|e| e.take());
+        .unwrap_or_else(|e| e.get());
 }
 ```
 

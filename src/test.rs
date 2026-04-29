@@ -75,7 +75,7 @@ fn format_truncation() {
         assert!(writer.truncated());
         write!(writer, "!!!").expect_err("writes should fail here");
 
-        let written = writer.finish().unwrap_err().take();
+        let written = writer.finish().unwrap_err().get();
         assert_eq!(*last_valid_idx_after_cut, written.len());
     }
 }
@@ -139,7 +139,7 @@ fn finish_with_overwrite() {
         let mut writer = WriteBuf::new(&mut buf[..input.len()]);
 
         writer.write_str(input).unwrap();
-        let written = writer.finish_with("?").unwrap_err().take();
+        let written = writer.finish_with("?").unwrap_err().get();
         assert_eq!(written.len(), last_valid_idx_after_cut + 1);
         let expected_written = SimpleString::from_segments(&[
             core::str::from_utf8(&input.as_bytes()[..*last_valid_idx_after_cut]).unwrap(),
@@ -154,7 +154,7 @@ fn finish_with_or_with_longer_normal_closer() {
     let mut buf: [u8; 4] = [0xff; 4];
     let writer = WriteBuf::new(&mut buf);
 
-    let written = writer.finish_with_or("0123456789", "abc").unwrap_err().take();
+    let written = writer.finish_with_or("0123456789", "abc").unwrap_err().get();
     assert_eq!(written.len(), 3);
     assert_eq!("abc", written);
 }
@@ -164,7 +164,7 @@ fn finish_with_full_overwrite_utf8() {
     let mut buf: [u8; 4] = [0xff; 4];
     let writer = WriteBuf::new(&mut buf);
 
-    let written = writer.finish_with("🚀12").unwrap_err().take();
+    let written = writer.finish_with("🚀12").unwrap_err().get();
     assert_eq!(written.len(), 2);
     assert_eq!("12", written);
 }
@@ -177,7 +177,7 @@ fn finish_with_all_continuation_bytes() {
     let mut buf: [u8; 2] = [0xff; 2];
     let writer = WriteBuf::new(&mut buf);
 
-    let written = writer.finish_with("🚀").unwrap_err().take();
+    let written = writer.finish_with("🚀").unwrap_err().get();
     assert_eq!(written, "");
 }
 
@@ -190,7 +190,7 @@ fn write_rejected_when_remaining_below_reserve() {
     assert!(writer.truncated());
     assert_eq!(writer.position(), 0);
 
-    let written = writer.finish().unwrap_err().take();
+    let written = writer.finish().unwrap_err().get();
     assert_eq!(written, "");
 }
 
