@@ -7,6 +7,7 @@ use core::fmt;
 /// This is used from [`WriteBuf`](crate::WriteBuf) functions in the `Result::Err` case. It only provides access
 /// to the inner value; for the `WriteBuf` finish family, `Truncated<'_>` records the part of the string slice
 /// that was validly written before truncation.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Truncated<'a>(pub(crate) &'a str);
 
 impl<'a> Truncated<'a> {
