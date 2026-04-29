@@ -5,13 +5,21 @@ All notable changes to this project will be documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [0.2.0]
 
 ### Added
 
 - `Truncated<'_>` error type, returned by the `WriteBuf::finish*` family. Carries the portion of the output that was
-  successfully written so callers don't have to track it separately.
+  successfully written so callers don't have to track it separately. Implements `Debug`, `Display`, `Error`, and
+  derives `Clone`, `Copy`, `PartialEq`, `Eq`, and `Hash` so it can be compared, hashed, and stored.
+- `Truncated::written()` and `Truncated::written_len()` -- inherent accessors that mirror the methods on
+  `TruncatedResultExt` so the same vocabulary works whether you hold the `Truncated` directly or a
+  `Result<&str, Truncated<'_>>`.
 - `WriteBuf::written()` returns the written portion as a `&str` (companion to the existing `written_bytes()` accessor).
+- `fmt::Debug` impl on `WriteBuf` for diagnostic logging. Shows position, capacity, reserve, the truncated flag, and
+  the validly-written `&str`; deliberately omits the raw target bytes (which may be uninitialized).
 
 ### Changed
 
