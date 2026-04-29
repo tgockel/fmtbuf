@@ -1,12 +1,12 @@
 [package]
 name = "fmtbuf"
 version = "0.2.0"
-edition = "2018"
-rust-version = "1.31"
+edition = "2021"
+rust-version = "1.81"
 authors = ["Travis Gockel <travis@gockelhut.com>"]
 license = "Apache-2.0"
 description = "Utilities for formatting to a fixed-size buffer"
-keywords = ["string", "format"]
+keywords = ["buffer", "truncation", "utf-8", "ffi", "no-std"]
 categories = ["development-tools::ffi", "no-std"]
 readme = "README.md"
 repository = "https://github.com/tgockel/fmtbuf"
