@@ -20,6 +20,7 @@ std = []
 
 [dev-dependencies]
 clap = { version = "4.0.0", features = ["derive"] }
+proptest = "1"
 
 [badges]
 maintenance = { status = "passively-maintained" }
