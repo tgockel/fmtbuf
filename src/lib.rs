@@ -10,15 +10,14 @@
 //! if let Err(e) = write!(&mut writer, "🚀🚀🚀") {
 //!     println!("write error: {e:?}");
 //! }
-//! let written_len = match writer.finish_with_or("!", "…") {
-//!     Ok(len) => len, // <- won't be hit since 🚀🚀🚀 is 12 bytes
-//!     Err(len) => {
+//! let written = match writer.finish_with_or("!", "…") {
+//!     Ok(s) => s, // <- won't be hit since 🚀🚀🚀 is 12 bytes
+//!     Err(e) => {
 //!         println!("writing was truncated");
-//!         len.take()
+//!         e.take()
 //!     }
 //! };
-//! let written = &buf[..written_len];
-//! assert_eq!("🚀…", std::str::from_utf8(written).unwrap());
+//! assert_eq!("🚀…", written);
 //! ```
 //!
 //! A few things happened in that example:
@@ -58,8 +57,7 @@ pub use utf8::rfind_utf8_end;
 /// write!(writer, "some data: {}", 0x01a4).unwrap();
 ///
 /// // Finish writing:
-/// let write_len = writer.finish().unwrap();
-/// let written = std::str::from_utf8(&buf[..write_len]).unwrap();
+/// let written = writer.finish().unwrap();
 /// assert_eq!(written, "some data: 420");
 /// ```
 pub struct WriteBuf<'a> {
@@ -128,29 +126,29 @@ impl<'a> WriteBuf<'a> {
 
     /// Get the contents that have been written so far.
     pub fn written(&self) -> &str {
-        #[cfg(debug_assertions)]
-        return core::str::from_utf8(self.written_bytes()).expect("contents of buffer should have been UTF-8 encoded");
-
         // safety: The only way to write into the buffer is with valid UTF-8, so there is no reason to check the
-        // contents for validity. They're still checked in debug builds just in case, though.
-        #[cfg(not(debug_assertions))]
-        unsafe {
-            core::str::from_utf8_unchecked(self.written_bytes())
-        }
+        // contents for validity.
+        unsafe { from_utf8_expect(self.written_bytes()) }
     }
 
     /// Finish writing to the buffer. This returns control of the target buffer to the caller (it is no longer mutably
-    /// borrowed) and returns the number of bytes written.
+    /// borrowed).
     ///
     /// # Returns
     ///
-    /// In both the `Ok` and `Err` cases, the [`WriteBuf::position`] is returned. The `Ok` case indicates the truncation
-    /// did not occur, while `Err` indicates that it did.
-    pub fn finish(self) -> Result<usize, Truncated<usize>> {
-        if self.truncated() {
-            Err(Truncated(self.position()))
+    /// In both the `Ok` and `Err` cases, the successfully-written portion of the output is returned as a `&str`. The
+    /// `Ok` case indicates the truncation did not occur, while `Err` indicates that it did.
+    pub fn finish(self) -> Result<&'a str, Truncated<&'a str>> {
+        self.into_result()
+    }
+
+    fn into_result(self) -> Result<&'a str, Truncated<&'a str>> {
+        // safety: The only way to write into the buffer is with valid UTF-8
+        let written = unsafe { from_utf8_expect(&self.target[..self.position]) };
+        if self.truncated {
+            Err(Truncated(written))
         } else {
-            Ok(self.position())
+            Ok(written)
         }
     }
 
@@ -166,19 +164,17 @@ impl<'a> WriteBuf<'a> {
     /// use fmtbuf::WriteBuf;
     ///
     /// let mut buf: [u8; 4] = [0xff; 4];
-    /// let mut writer = WriteBuf::new(&mut buf);
+    /// let writer = WriteBuf::new(&mut buf);
     ///
     /// // Finish writing with too many bytes:
-    /// let write_len = writer.finish_with("12345").unwrap_err().take();
-    /// assert_eq!(write_len, 4);
-    /// let buf_str = std::str::from_utf8(&buf).unwrap();
-    /// assert_eq!(buf_str, "2345");
+    /// let written = writer.finish_with("12345").unwrap_err().take();
+    /// assert_eq!(written, "2345");
     /// ```
     ///
     /// # Returns
     ///
     /// The returned value has the same meaning as [`WriteBuf::finish`].
-    pub fn finish_with(self, suffix: impl AsRef<[u8]>) -> Result<usize, Truncated<usize>> {
+    pub fn finish_with(self, suffix: impl AsRef<str>) -> Result<&'a str, Truncated<&'a str>> {
         let suffix = suffix.as_ref();
         self._finish_with(suffix, suffix)
     }
@@ -187,13 +183,13 @@ impl<'a> WriteBuf<'a> {
     /// truncated. This operates the same as [`WriteBuf::finish_with`] in every other way.
     pub fn finish_with_or(
         self,
-        normal_suffix: impl AsRef<[u8]>,
-        truncated_suffix: impl AsRef<[u8]>,
-    ) -> Result<usize, Truncated<usize>> {
+        normal_suffix: impl AsRef<str>,
+        truncated_suffix: impl AsRef<str>,
+    ) -> Result<&'a str, Truncated<&'a str>> {
         self._finish_with(normal_suffix.as_ref(), truncated_suffix.as_ref())
     }
 
-    fn _finish_with(mut self, normal: &[u8], truncated: &[u8]) -> Result<usize, Truncated<usize>> {
+    fn _finish_with(mut self, normal: &str, truncated: &str) -> Result<&'a str, Truncated<&'a str>> {
         let remaining = self.target.len() - self.position();
 
         // If the truncated case is shorter than the normal case, then writing it might still work
@@ -204,13 +200,9 @@ impl<'a> WriteBuf<'a> {
 
             // enough room in the buffer to write entire suffix, so just write it
             if suffix.len() <= remaining {
-                self.target[self.position..self.position + suffix.len()].copy_from_slice(suffix);
+                self.target[self.position..self.position + suffix.len()].copy_from_slice(suffix.as_bytes());
                 self.position += suffix.len();
-                return if self.truncated() {
-                    Err(Truncated(self.position()))
-                } else {
-                    Ok(self.position())
-                };
+                return self.into_result();
             }
 
             // we attempted to perform a write, but rejected it
@@ -221,25 +213,32 @@ impl<'a> WriteBuf<'a> {
 
         // if the suffix is larger than the entire target buffer, copy the last N
         if self.target.len() < suffix.len() {
-            let copyable_suffix = &suffix[suffix.len() - self.target.len()..];
+            let suffix_bytes = suffix.as_bytes();
+            let copyable_suffix = &suffix_bytes[suffix.len() - self.target.len()..];
             let Some(valid_utf8_idx) = copyable_suffix
                 .iter()
                 .enumerate()
                 .find(|(_, cu)| utf8::utf8_char_width(**cu).is_some())
                 .map(|(idx, _)| idx)
             else {
-                return Err(Truncated(0));
+                self.position = 0;
+                self.truncated = true;
+                return self.into_result();
             };
             let copyable_suffix = &copyable_suffix[valid_utf8_idx..];
             self.target[..copyable_suffix.len()].copy_from_slice(copyable_suffix);
-            return Err(Truncated(copyable_suffix.len()));
+            self.position = copyable_suffix.len();
+            self.truncated = true;
+            return self.into_result();
         }
 
         // Scan backwards to find the position we should write to (can't interrupt a UTF-8 multibyte sequence)
         let potential_end_idx = self.target.len() - suffix.len();
         let write_idx = rfind_utf8_end(&self.target[..potential_end_idx]);
-        self.target[write_idx..write_idx + suffix.len()].copy_from_slice(suffix);
-        Err(Truncated(write_idx + suffix.len()))
+        self.target[write_idx..write_idx + suffix.len()].copy_from_slice(suffix.as_bytes());
+        self.position = write_idx + suffix.len();
+        self.truncated = true;
+        self.into_result()
     }
 
     fn _write(&mut self, input: &[u8]) -> fmt::Result {
@@ -289,6 +288,24 @@ impl<'a> fmt::Write for WriteBuf<'a> {
     }
 }
 
+/// Extract a `&str` from source `&[u8]`, expecting it to be valid UTF-8.
+///
+/// # Safety
+///
+/// Under the covers, this calls `str::from_utf8` if debug assertions are enabled, otherwise it calls
+/// `str::from_utf8_unchecked`. This means `src` should always be valid UTF-8.
+unsafe fn from_utf8_expect(src: &[u8]) -> &str {
+    #[cfg(debug_assertions)]
+    return core::str::from_utf8(src).expect("buffer should have been valid UTF-8");
+
+    // safety: The only way to write into the buffer is with valid UTF-8, so there is no reason to check the
+    // contents for validity. They're still checked in debug builds just in case, though.
+    #[cfg(not(debug_assertions))]
+    unsafe {
+        core::str::from_utf8_unchecked(src)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -333,8 +350,9 @@ mod test {
 
             writer.write_str(input).unwrap();
             assert_eq!(input.len(), writer.position());
-            let last_idx = writer.finish().unwrap();
-            assert_eq!(input.len(), last_idx);
+            let written = writer.finish().unwrap();
+            assert_eq!(input.len(), written.len());
+            assert_eq!(*input, written);
         }
     }
 
@@ -346,8 +364,9 @@ mod test {
 
             writer.write_str(input).unwrap();
             assert_eq!(input.len(), writer.position());
-            let last_idx = writer.finish().unwrap();
-            assert_eq!(input.len(), last_idx);
+            let written = writer.finish().unwrap();
+            assert_eq!(input.len(), written.len());
+            assert_eq!(*input, written);
         }
     }
 
@@ -366,8 +385,8 @@ mod test {
             assert!(writer.truncated());
             write!(writer, "!!!").expect_err("writes should fail here");
 
-            let last_idx = writer.finish().unwrap_err().take();
-            assert_eq!(*last_valid_idx_after_cut, last_idx);
+            let written = writer.finish().unwrap_err().take();
+            assert_eq!(*last_valid_idx_after_cut, written.len());
         }
     }
 
@@ -412,11 +431,10 @@ mod test {
             let mut writer = WriteBuf::new(&mut buf);
 
             writer.write_str(input).unwrap();
-            let position = writer.finish_with(b".123").unwrap();
-            assert_eq!(position, input.len() + 4);
+            let written = writer.finish_with(".123").unwrap();
+            assert_eq!(written.len(), input.len() + 4);
             let expected_written = SimpleString::from_segments(&[input, ".123"]);
-            let actually_wriiten = core::str::from_utf8(&buf[..position]).unwrap();
-            assert_eq!(expected_written.as_str(), actually_wriiten);
+            assert_eq!(expected_written.as_str(), written);
         }
     }
 
@@ -431,14 +449,13 @@ mod test {
             let mut writer = WriteBuf::new(&mut buf[..input.len()]);
 
             writer.write_str(input).unwrap();
-            let position = writer.finish_with("?").unwrap_err().take();
-            assert_eq!(position, last_valid_idx_after_cut + 1);
+            let written = writer.finish_with("?").unwrap_err().take();
+            assert_eq!(written.len(), last_valid_idx_after_cut + 1);
             let expected_written = SimpleString::from_segments(&[
                 core::str::from_utf8(&input.as_bytes()[..*last_valid_idx_after_cut]).unwrap(),
                 "?",
             ]);
-            let actually_wriiten = core::str::from_utf8(&buf[..position]).unwrap();
-            assert_eq!(expected_written.as_str(), actually_wriiten);
+            assert_eq!(expected_written.as_str(), written);
         }
     }
 
@@ -448,8 +465,8 @@ mod test {
         let writer = WriteBuf::new(&mut buf);
 
         let written = writer.finish_with_or("0123456789", "abc").unwrap_err().take();
-        assert_eq!(written, 3);
-        assert_eq!("abc", core::str::from_utf8(&buf[..written]).unwrap());
+        assert_eq!(written.len(), 3);
+        assert_eq!("abc", written);
     }
 
     #[test]
@@ -458,8 +475,8 @@ mod test {
         let writer = WriteBuf::new(&mut buf);
 
         let written = writer.finish_with("🚀12").unwrap_err().take();
-        assert_eq!(written, 2);
-        assert_eq!("12", core::str::from_utf8(&buf[..written]).unwrap());
+        assert_eq!(written.len(), 2);
+        assert_eq!("12", written);
     }
 
     #[test]
@@ -473,8 +490,8 @@ mod test {
         writer.set_reserve(4);
         assert_eq!("0123456789", writer.written());
 
-        writer.finish_with_or("", "!").unwrap();
-        assert_eq!("0123456789", core::str::from_utf8(&buf).unwrap());
+        let written = writer.finish_with_or("", "!").unwrap();
+        assert_eq!("0123456789", written);
     }
 }
 

@@ -4,9 +4,9 @@ use core::fmt;
 
 /// An error type indicating that a result was truncated.
 ///
-/// This is used from [`WriteBuf`] functions in the `Result::Err` case. It only provides access to the inner value,
-/// whose meaning is context dependent. A `Truncated<usize>` records the number of bytes written before truncation. A
-/// `Truncated<&'_ str>` records the part of the string slice that was validly written before truncation.
+/// This is used from [`WriteBuf`] functions in the `Result::Err` case. It only provides access to the inner value;
+/// for the `WriteBuf` finish family, `Truncated<&'_ str>` records the part of the string slice that was validly
+/// written before truncation.
 pub struct Truncated<T>(pub(crate) T);
 
 impl<T> Truncated<T> {

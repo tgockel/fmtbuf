@@ -18,16 +18,14 @@ fn main() {
     if let Err(e) = write!(&mut writer, "🚀🚀🚀") {
         println!("write error: {e:?}");
     }
-    let written_len = match writer.finish_with("\0") {
-        Ok(len) => len, // <- won't be hit since 🚀🚀🚀 is 12 bytes
-        Err(len) => {
+    let written = match writer.finish_with("\0") {
+        Ok(s) => s, // <- won't be hit since 🚀🚀🚀 is 12 bytes
+        Err(e) => {
             println!("writing was truncated");
-            len.take()
+            e.take()
         }
     };
-    let written = &buf[..written_len];
-    println!("wrote {written_len} bytes: {written:?}");
-    println!("result: {:?}", std::str::from_utf8(written));
+    println!("wrote {} bytes: {written:?}", written.len());
 }
 ```
 
@@ -47,7 +45,7 @@ pub unsafe extern "C" fn mylib_strerror(
     buf_len: usize
 ) {
     let mut buf = unsafe {
-        // Buffer provided by a users
+        // Buffer provided by user
         std::slice::from_raw_parts_mut(buf as *mut u8, buf_len)
     };
     // Reserve at least 1 byte at the end because we will always
@@ -56,13 +54,13 @@ pub unsafe extern "C" fn mylib_strerror(
 
     // Use the standard `write!` macro (no error handling for
     // brevity) -- note that an error here might only indicate
-    // write truncation, which is handled gracefully be this
+    // write truncation, which is handled gracefully by this
     // library's finish___ functions
     let _ = write!(writer, "{}", err.as_ref().unwrap());
 
     // null-terminate buffer or add "..." if it was truncated
-    let _written_len = writer.finish_with_or(b"\0", b"...\0")
-        // Err value contains number of bytes written
+    let _written = writer.finish_with_or("\0", "...\0")
+        // Err value contains the part successfully written
         .unwrap_or_else(|e| e.take());
 }
 ```
@@ -173,3 +171,10 @@ face a similar issue.
 Where should the cutoff be?
 This library does not know the difference between "𓁪𓌍𓃻" and "𓁪𓌍".
 Figuring that out is the responsibility of a higher-level construct.
+
+#### �
+
+This library implements [`std::fmt::Write`](https://doc.rust-lang.org/stable/std/fmt/trait.Write.html), which only
+accepts UTF-8-encoded data.
+There is no place for � in this library.
+However, the result of a truncated run might be replaced by � for presentation at a higher level.

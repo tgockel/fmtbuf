@@ -62,26 +62,17 @@ fn main() {
         (None, Some(truncate)) => writer.finish_with_or("", truncate),
         (Some(finish), Some(truncate)) => writer.finish_with_or(finish, truncate),
     };
-    let (written_len, truncated) = match result {
-        Ok(len) => (len, false),
-        Err(len) => (len.take(), true),
+    let (contents, truncated) = match result {
+        Ok(s) => (s, false),
+        Err(e) => (e.take(), true),
     };
+    println!("{contents}");
 
-    let contents = match std::str::from_utf8(&buf[..written_len]) {
-        Ok(contents) => {
-            println!("{contents}");
-            contents.as_bytes()
-        },
-        Err(e) => {
-            println!("! error: {e:?}");
-            &buf[..written_len]
-        },
-    };
     if !cli.quiet {
         println!("+ version: {}", env!("CARGO_PKG_VERSION"));
-        println!("+ written_len: {written_len}");
+        println!("+ written_len: {}", contents.len());
         println!("+ truncated: {truncated}");
-        println!("+ output_bytes: {contents:?}");
+        println!("+ output_bytes: {:?}", contents.as_bytes());
         println!("+ input: {}", cli.input);
         println!("+ input_bytes: {:?}", cli.input.as_bytes());
     }
