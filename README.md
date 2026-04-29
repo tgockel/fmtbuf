@@ -77,9 +77,9 @@ pub unsafe extern "C" fn mylib_strerror(
 Features
 --------
 
-### `!#[no_std]`
+### `#![no_std]`
 
-Support for `!#[no_std]` is enabled by disabling the default features and not re-enabling the `"std"` feature.
+Support for `#![no_std]` is enabled by disabling the default features and not re-enabling the `"std"` feature.
 
 ```toml
 fmtbuf = { version = "*", default-features = false }
